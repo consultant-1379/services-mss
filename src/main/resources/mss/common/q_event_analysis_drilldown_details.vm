@@ -1,0 +1,228 @@
+##	This template is used for Mss KPI Ratio drilldown.
+##	Mss KPI Ratio Drilldown from Internal Cause Code to Event Analysis.
+##
+## Template Parameters:
+##	1.type = [MSSMSC, MSSBSC, MSSCELL]
+## Query Parameters:
+##	1. type = MSSMSC
+##		:EVENT_ID, :EVNTSRC_ID, :HIER3_ID, :HIER321_ID, :FAULT_CODE, :INTERNAL_CAUSE_CODE
+##	2. type = MSSBSC
+##		:EVENT_ID, :HIER3_ID, :HIER321_ID, :FAULT_CODE, :INTERNAL_CAUSE_CODE
+##	3. type = MSSCELL
+## 		:EVENT_ID, :HIER321_ID
+##
+## Author: echimma
+#DEFINE_CONSTANTS()
+#set($event_ID=$ApplicationConstants.EVENT_ID_SQL_PARAM)
+
+#if($eventID==$ApplicationConstants.MSS_LOCATION_SERVICE_EVENT_ID_SQL_PARAM)
+	#set($eventType=$ApplicationConstants.LOC_SERVICE)
+	#if($csv == true)
+	  #set($selectColumns=["EVNTSRC_ID", "HIER3_ID", "HIER321_ID", "DATEADD(minute,$tzOffset,EVENT_TIME) AS 'EVENT_TIME'", "MSISDN", "IMSI", "TAC", "MANUFACTURER", "MARKETING_NAME", "EVENT_TYPE", "EVENT_RESULT", "UNSUC_POSITION_REASON_DESC", "LCS_CLIENT_TYPE_DESC", "TYPE_LOCATION_REQ_DESC", "UNSUC_POSITION_REASON", "LCS_CLIENT_TYPE", "TYPE_LOCATION_REQ", "RAT_DESC", "EVENT_SOURCE_NAME", "HIERARCHY_3", "HIERARCHY_1", "VENDOR", "CALL_ID_NUM", "RECORD_SEQ_NUM", "TARGET_MSISDN", "TARGET_IMSI", "TARGET_IMEI", "LCS_CLIENT_ID", "POSITION_DELIVERY", "NETWORK_CALL_REFERENCE", "MCC", "MNC", "RAC", "LAC"])
+	 #else
+	 #set($selectColumns=["EVNTSRC_ID", "HIER3_ID", "HIER321_ID", "EVENT_TIME", "MSISDN", "IMSI", "TAC", "MANUFACTURER", "MARKETING_NAME", "EVENT_TYPE", "EVENT_RESULT", "UNSUC_POSITION_REASON_DESC", "LCS_CLIENT_TYPE_DESC", "TYPE_LOCATION_REQ_DESC", "UNSUC_POSITION_REASON", "LCS_CLIENT_TYPE", "TYPE_LOCATION_REQ", "RAT_DESC", "EVENT_SOURCE_NAME", "HIERARCHY_3", "HIERARCHY_1", "VENDOR", "CALL_ID_NUM", "RECORD_SEQ_NUM", "TARGET_MSISDN", "TARGET_IMSI", "TARGET_IMEI", "LCS_CLIENT_ID", "POSITION_DELIVERY", "NETWORK_CALL_REFERENCE", "MCC", "MNC", "RAC", "LAC"])
+	 #end
+
+
+	#if(${type}==$ApplicationConstants.TYPE_BSC)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID"])
+	#elseif(${type}==$ApplicationConstants.TYPE_MSC)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID", "$ApplicationConstants.EVENT_SOURCE_SQL_ID"])
+	#elseif(${type}==$ApplicationConstants.TYPE_CELL)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID"])
+	#end
+	#set($columnsToInclude=["RAT", "EVENT_ID", "DATE_ID", "HOUR_ID", "EVENT_TIME", "MSISDN", "IMSI", "TAC", "CALL_ID_NUM", "TARGET_MSISDN", "TARGET_IMSI", "TARGET_IMEI", "LCS_CLIENT_ID", "POSITION_DELIVERY", "RECORD_SEQ_NUM", "NETWORK_CALL_REFERENCE", "MCC", "MNC", "RAC", "LAC", "EVENT_RESULT", "UNSUC_POSITION_REASON", "LCS_CLIENT_TYPE", "TYPE_LOCATION_REQ"])
+	#set($errColumnsToInclude=["EVNTSRC_ID", "HIER3_ID", "HIER321_ID", "RAT", "EVENT_ID", "DATE_ID", "HOUR_ID", "LCS_CLIENT_TYPE", "UNSUC_POSITION_REASON", "TYPE_LOCATION_REQ", "EVENT_TIME", "MSISDN", "IMSI", "TAC", "CALL_ID_NUM", "TARGET_MSISDN", "TARGET_IMSI", "TARGET_IMEI", "LCS_CLIENT_ID", "POSITION_DELIVERY", "RECORD_SEQ_NUM", "NETWORK_CALL_REFERENCE", "MCC", "MNC", "RAC", "LAC", "'ERROR' as EVENT_RESULT"])
+#elseif($eventID==$ApplicationConstants.MSS_SMS_MS_ORIGINATING_EVENT_ID_SQL_PARAM||$eventID==$ApplicationConstants.MSS_SMS_MS_TERMINATING_EVENT_ID_SQL_PARAM)
+	#set($eventType=$ApplicationConstants.SMS)
+	#if($csv == true)
+	 #set($selectColumns=["EVNTSRC_ID", "HIER3_ID", "HIER321_ID", "DATEADD(minute,$tzOffset,EVENT_TIME) AS 'EVENT_TIME'", "MSISDN", "IMSI", "TAC", "MANUFACTURER", "MARKETING_NAME", "EVENT_TYPE", "EVENT_RESULT", "SMS_RESULT_DESC", "MSG_TYPE_INDICATOR_DESC", "SMS_RESULT", "MSG_TYPE_INDICATOR", "BEARER_SERVICE_CODE", "TELE_SERVICE_CODE", "RAT_DESC", "EVENT_SOURCE_NAME", "HIERARCHY_3", "HIERARCHY_1", "VENDOR", "CALL_ID_NUM", "TYPE_OF_CALLING_SUB", "CALLING_PARTY_NUM", "CALLED_PARTY_NUM", "CALLING_SUB_IMSI", "CALLED_SUB_IMSI", "CALLING_SUB_IMEI", "CALLED_SUB_IMEI", "CALLING_SUB_IMEISV", "CALLED_SUB_IMEISV", "ORIGINATING_NUM", "DEST_NUM", "SERVICE_CENTRE", "ORIGINATING_TIME", "DELIVERY_TIME", "RECORD_SEQ_NUM", "MCC", "MNC", "RAC", "LAC"])
+	 #else
+	   #set($selectColumns=["EVNTSRC_ID", "HIER3_ID", "HIER321_ID", "EVENT_TIME", "MSISDN", "IMSI", "TAC", "MANUFACTURER", "MARKETING_NAME", "EVENT_TYPE", "EVENT_RESULT", "SMS_RESULT_DESC", "MSG_TYPE_INDICATOR_DESC", "SMS_RESULT", "MSG_TYPE_INDICATOR", "BEARER_SERVICE_CODE", "TELE_SERVICE_CODE", "RAT_DESC", "EVENT_SOURCE_NAME", "HIERARCHY_3", "HIERARCHY_1", "VENDOR", "CALL_ID_NUM", "TYPE_OF_CALLING_SUB", "CALLING_PARTY_NUM", "CALLED_PARTY_NUM", "CALLING_SUB_IMSI", "CALLED_SUB_IMSI", "CALLING_SUB_IMEI", "CALLED_SUB_IMEI", "CALLING_SUB_IMEISV", "CALLED_SUB_IMEISV", "ORIGINATING_NUM", "DEST_NUM", "SERVICE_CENTRE", "ORIGINATING_TIME", "DELIVERY_TIME", "RECORD_SEQ_NUM", "MCC", "MNC", "RAC", "LAC"])
+	   #end
+
+
+	#if(${type}==$ApplicationConstants.TYPE_BSC)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID"])
+	#elseif(${type}==$ApplicationConstants.TYPE_MSC)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID", "$ApplicationConstants.EVENT_SOURCE_SQL_ID"])
+	#elseif(${type}==$ApplicationConstants.TYPE_CELL)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID"])
+	#end
+	#set($columnsToInclude=["RAT", "EVENT_ID", "DATE_ID", "HOUR_ID", "SMS_RESULT", "MSG_TYPE_INDICATOR", "EVENT_TIME", "MSISDN", "IMSI", "TAC", "BEARER_SERVICE_CODE", "TELE_SERVICE_CODE", "CALL_ID_NUM", "TYPE_OF_CALLING_SUB", "CALLING_PARTY_NUM", "CALLED_PARTY_NUM", "CALLING_SUB_IMSI", "CALLED_SUB_IMSI", "CALLING_SUB_IMEI", "CALLED_SUB_IMEI", "CALLING_SUB_IMEISV", "CALLED_SUB_IMEISV", "ORIGINATING_NUM", "DEST_NUM", "SERVICE_CENTRE", "ORIGINATING_TIME", "DELIVERY_TIME", "RECORD_SEQ_NUM", "MCC", "MNC", "RAC", "LAC", "EVENT_RESULT"])
+	#set($errColumnsToInclude=["EVNTSRC_ID", "HIER3_ID", "HIER321_ID", "RAT", "EVENT_ID", "DATE_ID", "HOUR_ID", "SMS_RESULT", "MSG_TYPE_INDICATOR", "EVENT_TIME", "MSISDN", "IMSI", "TAC", "BEARER_SERVICE_CODE", "TELE_SERVICE_CODE", "CALL_ID_NUM", "TYPE_OF_CALLING_SUB", "CALLING_PARTY_NUM", "CALLED_PARTY_NUM", "CALLING_SUB_IMSI", "CALLED_SUB_IMSI", "CALLING_SUB_IMEI", "CALLED_SUB_IMEI", "CALLING_SUB_IMEISV", "CALLED_SUB_IMEISV", "ORIGINATING_NUM", "DEST_NUM", "SERVICE_CENTRE", "ORIGINATING_TIME", "DELIVERY_TIME", "RECORD_SEQ_NUM", "MCC", "MNC", "RAC", "LAC", "'ERROR' as EVENT_RESULT"])
+#else
+	#set($eventType=$ApplicationConstants.VOICE)
+	#set($selectColumns=["EVNTSRC_ID", "HIER3_ID", "HIER321_ID", "EVENT_TIME","EVENT_SOURCE_NAME","EXTERNAL_PROTOCOL_NAME","EXTERNAL_PROTOCOL_ID","INCOMING_ROUTE", "OUTGOING_ROUTE", "HIERARCHY_3",  "HIERARCHY_1","TAC", "MSISDN", "IMSI", "MANUFACTURER", "MARKETING_NAME", "EVENT_TYPE", "EVENT_RESULT", "EXTERNAL_CAUSE_CODE","EXTERNAL_CAUSE_DESC","INTERNAL_CAUSE_CODE","INTERNAL_CAUSE_CODE_DESC","FAULT_CODE", "FAULT_CODE_DESC", "ADVICE",  "INTERNAL_LOCATION_CODE", "BEARER_SERVICE_CODE", "TELE_SERVICE_CODE", "RAT_DESC",  "VENDOR", "CALL_ID_NUM", "TYPE_OF_CALLING_SUB", "CALLING_PARTY_NUM", "CALLED_PARTY_NUM", "CALLING_SUB_IMSI", "CALLED_SUB_IMSI", "CALLING_SUB_IMEI", "CALLED_SUB_IMEI", "MS_ROAMING_NUM", "DISCONNECT_PARTY", "CALL_DURATION", "SEIZURE_TIME", "ORIGINAL_CALLED_NUM", "REDIRECT_NUM", "REDIRECT_COUNTER", "REDIRECT_IMSI", "REDIRECT_SPN", "CALL_POSITION", "EOS_INFO", "RECORD_SEQ_NUM", "NETWORK_CALL_REFERENCE", "MCC", "MNC", "RAC", "LAC"])
+	#if(${type}==$ApplicationConstants.TYPE_BSC)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID", "FAULT_CODE", "INTERNAL_CAUSE_CODE"])
+	#elseif(${type}==$ApplicationConstants.TYPE_MSC)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID", "$ApplicationConstants.EVENT_SOURCE_SQL_ID", "FAULT_CODE", "INTERNAL_CAUSE_CODE"])
+	#elseif(${type}==$ApplicationConstants.TYPE_CELL)
+		#set($condictionColumns=["$ApplicationConstants.CELL_SQL_ID", "FAULT_CODE", "INTERNAL_CAUSE_CODE"])
+	#end
+	#set($columnsToInclude=["EXTERNAL_CAUSE_CODE","EXTERNAL_PROTOCOL_ID","INCOMING_ROUTE","OUTGOING_ROUTE","EVENT_ID","EVENT_TIME","CALLING_PARTY_NUM","MSISDN","IMSI","TAC","EVENT_RESULT", "INTERNAL_CAUSE_CODE", "FAULT_CODE", "RAT","INTERNAL_LOCATION_CODE","BEARER_SERVICE_CODE","TELE_SERVICE_CODE","OSS_ID","CALL_ID_NUM","TYPE_OF_CALLING_SUB","CALLED_PARTY_NUM","CALLING_SUB_IMSI","CALLING_SUB_IMEI","CALLED_SUB_IMSI","CALLED_SUB_IMEI","MS_ROAMING_NUM","DISCONNECT_PARTY","CALL_DURATION","SEIZURE_TIME","ORIGINAL_CALLED_NUM","REDIRECT_NUM","REDIRECT_COUNTER","REDIRECT_IMSI","REDIRECT_SPN","CALL_POSITION","EOS_INFO","RECORD_SEQ_NUM","MCC","MNC","RAC","LAC","ACCESS_AREA_CODE","DATETIME_ID","NETWORK_CALL_REFERENCE"])
+    #set($errColumnsToInclude=["EXTERNAL_CAUSE_CODE","EXTERNAL_PROTOCOL_ID","INCOMING_ROUTE","OUTGOING_ROUTE","EVENT_ID","EVENT_TIME","CALLING_PARTY_NUM","MSISDN","IMSI","TAC","'BLOCKED' as EVENT_RESULT","INTERNAL_CAUSE_CODE","FAULT_CODE","RAT","VENDOR","INTERNAL_LOCATION_CODE","BEARER_SERVICE_CODE","TELE_SERVICE_CODE","OSS_ID","CALL_ID_NUM","TYPE_OF_CALLING_SUB","CALLED_PARTY_NUM","CALLING_SUB_IMSI","CALLING_SUB_IMEI","CALLED_SUB_IMSI","CALLED_SUB_IMEI","MS_ROAMING_NUM","DISCONNECT_PARTY","CALL_DURATION","SEIZURE_TIME","ORIGINAL_CALLED_NUM","REDIRECT_NUM","REDIRECT_COUNTER","REDIRECT_IMSI","REDIRECT_SPN","CALL_POSITION","EOS_INFO","RECORD_SEQ_NUM","MCC","MNC","RAC","LAC","EVNTSRC_ID","HIER3_ID","HIER321_ID","ACCESS_AREA_CODE","DATETIME_ID","NETWORK_CALL_REFERENCE"])
+    #set($dropcallColumnsToInclude=["EXTERNAL_CAUSE_CODE","EXTERNAL_PROTOCOL_ID","INCOMING_ROUTE","OUTGOING_ROUTE","EVENT_ID","EVENT_TIME","CALLING_PARTY_NUM","MSISDN","IMSI","TAC","'DROPPED' as EVENT_RESULT","INTERNAL_CAUSE_CODE","FAULT_CODE","RAT","VENDOR","INTERNAL_LOCATION_CODE","BEARER_SERVICE_CODE","TELE_SERVICE_CODE","OSS_ID","CALL_ID_NUM","TYPE_OF_CALLING_SUB","CALLED_PARTY_NUM","CALLING_SUB_IMSI","CALLING_SUB_IMEI","CALLED_SUB_IMSI","CALLED_SUB_IMEI","MS_ROAMING_NUM","DISCONNECT_PARTY","CALL_DURATION","SEIZURE_TIME","ORIGINAL_CALLED_NUM","REDIRECT_NUM","REDIRECT_COUNTER","REDIRECT_IMSI","REDIRECT_SPN","CALL_POSITION","EOS_INFO","RECORD_SEQ_NUM","MCC","MNC","RAC","LAC","EVNTSRC_ID","HIER3_ID","HIER321_ID","ACCESS_AREA_CODE","DATETIME_ID","NETWORK_CALL_REFERENCE"])
+#end
+
+#set($toplogyTables = ["DIM_E_SGEH_HIER321","DIM_Z_SGEH_HIER321"])
+#set($topologyColumns = ["HIERARCHY_3","HIERARCHY_1","VENDOR","HIER3_ID","HIER321_ID"])
+#set($topologyView = "topologyref")
+
+#macro (REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_SPECIFY_COLUMNS_BY_EVENT_ID_WITH_TAC_EXCLUSION $rawtables $rawview $columns $columnsToIncludeInNewView $evntId)
+	(
+		#foreach ($rawtable in $rawtables)
+			select
+				#foreach ($columnToInclude in $columnsToIncludeInNewView)
+					$columnToInclude
+					#if($velocityCount < $columnsToIncludeInNewView.size())
+					,
+					#end
+				#end
+			from dc.$rawtable rawview
+			where
+			#GET_DATETIME_RANGE()
+			and #GET_TAC_EXCLUSION()
+			and #GET_COLUMNS_WHERE($columns)
+			and
+				EVENT_ID = $evntId
+			#if($velocityCount < $rawtables.size())
+					union all
+			#end
+		#end
+	) as $rawview
+#end
+
+#macro (SELECT_RETURN_COLUMNS $columns)
+	#foreach ($column in $columns)
+        #if ( $velocityCount <= 1)
+        :$column as $column
+        #else
+        ,:$column as $column
+        #end
+    #end
+#end
+
+begin
+
+select
+#if($count > 0)
+	top $count
+#end
+	#GET_COLUMNS_NO_COMMA_TRAILING($selectColumns)
+from
+	(select 
+    	${topologyView}.HIER3_ID as HIER3_ID,
+    	${topologyView}.HIER321_ID as HIER321_ID,
+        tacref.MANUFACTURER as MANUFACTURER,
+        tacref.MARKETING_NAME as MARKETING_NAME,
+        eventtyperef.EVENT_ID_DESC as EVENT_TYPE,
+        ratref.RAT_DESC as RAT_DESC,
+		#if($eventType==$ApplicationConstants.VOICE)
+        internalcausecoderef.INTERNAL_CAUSE_CODE_DESC as INTERNAL_CAUSE_CODE_DESC,
+        faultcoderef.FAULT_CODE_DESC as FAULT_CODE_DESC, 
+		faultcoderef.ADVICE as ADVICE,
+		mssprotocol.EXTERNAL_PROTOCOL_NAME as EXTERNAL_PROTOCOL_NAME,
+		extcausecoderef.EXTERNAL_CAUSE_DESC,
+    
+        #elseif($eventType==$ApplicationConstants.LOC_SERVICE)
+		unsucpositionreason.UNSUC_POSITION_REASON_DESC,
+		lcsclienttyperef.LCS_CLIENT_TYPE_DESC, 
+		typelocationrequestref.TYPE_LOCATION_REQ_DESC, 
+		#elseif($eventType==$ApplicationConstants.SMS)
+		smsResult.SMS_RESULT_DESC,
+		msgTypeIndicator.MSG_TYPE_INDICATOR_DESC,
+		#end
+		#GET_COLUMNS_BY_TABLE_NO_COMMA_TRAILING("mssraw" $columnsToInclude),
+		evntref.EVNTSRC_ID as EVNTSRC_ID,
+		evntref.EVENT_SOURCE_NAME,
+		${topologyView}.HIERARCHY_3,
+    	${topologyView}.HIERARCHY_1,
+    	${topologyView}.VENDOR as VENDOR
+    from
+        dc.DIM_E_SGEH_TAC tacref,
+        dc.DIM_E_MSS_EVENTTYPE eventtyperef,
+        dc.DIM_E_MSS_PROTOCOL_CODE mssprotocol,
+		#if($eventType==$ApplicationConstants.VOICE)
+        dc.DIM_E_MSS_FAULT_CODE faultcoderef,
+        dc.DIM_E_MSS_INTERNAL_CAUSE_CODE internalcausecoderef,
+    	dc.DIM_E_MSS_EXTERNAL_CAUSE_CODE extcausecoderef,
+		#elseif($eventType==$ApplicationConstants.LOC_SERVICE)
+		dc.DIM_E_MSS_LCS_CLIENT_TYPE lcsclienttyperef, 
+		dc.DIM_E_MSS_TYPE_LOCATION_REQ typelocationrequestref, 
+		dc.DIM_E_MSS_UNSUC_POSITION_REASON unsucpositionreason,
+		#elseif($eventType==$ApplicationConstants.SMS)
+		dc.DIM_E_MSS_MSG_TYPE_INDICATOR msgTypeIndicator,
+		dc.DIM_E_MSS_SMS_RESULT smsResult,
+		#end
+    	dc.DIM_E_MSS_EVNTSRC evntref,
+        dc.DIM_E_SGEH_RAT ratref,
+		(
+			select * from
+			(
+			#if($eventType==$ApplicationConstants.VOICE)
+				(
+					select
+						*
+						from 
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_SPECIFY_COLUMNS_BY_EVENT_ID_WITH_TAC_EXCLUSION($techPackTables.getErrTables($ApplicationConstants.ERR) "err_raw" $condictionColumns $errColumnsToInclude ":$event_ID")
+				)
+				union all
+				(
+					select 
+						*
+						from 
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_SPECIFY_COLUMNS_BY_EVENT_ID_WITH_TAC_EXCLUSION($techPackTables.getErrTables($ApplicationConstants.KEY_TYPE_DROP_CALL) "drop_raw" $condictionColumns $dropcallColumnsToInclude ":$event_ID")
+				)
+			) as result_data
+			#elseif($eventType==$ApplicationConstants.LOC_SERVICE)
+				#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_SPECIFY_COLUMNS_BY_EVENT_ID_WITH_TAC_EXCLUSION($techPackTables.getErrTables($ApplicationConstants.KEY_TYPE_LOC_SERVICE_ERR) "err_raw" $condictionColumns $errColumnsToInclude ":$event_ID")
+			)
+			#elseif($eventType==$ApplicationConstants.SMS)
+				#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_SPECIFY_COLUMNS_BY_EVENT_ID_WITH_TAC_EXCLUSION($techPackTables.getErrTables($ApplicationConstants.KEY_TYPE_SMS_ERR) "err_raw" $condictionColumns $errColumnsToInclude ":$event_ID")
+			)
+			#end
+		) as mssraw,
+    	#UNION_ALL_TABLES_WITH_FILTER_COLUMNS_CHECK($toplogyTables $topologyView $topologyColumns)
+    	where
+	#if($eventType==$ApplicationConstants.VOICE)
+        internalcausecoderef.INTERNAL_CAUSE_CODE = mssraw.INTERNAL_CAUSE_CODE 
+    and
+        faultcoderef.FAULT_CODE = mssraw.FAULT_CODE
+	#elseif($eventType==$ApplicationConstants.LOC_SERVICE)
+		mssraw.LCS_CLIENT_TYPE = lcsclienttyperef.LCS_CLIENT_TYPE
+	and 
+		mssraw.TYPE_LOCATION_REQ = typelocationrequestref.TYPE_LOCATION_REQ 
+    and 
+		mssraw.UNSUC_POSITION_REASON = unsucpositionreason.UNSUC_POSITION_REASON
+	#elseif($eventType==$ApplicationConstants.SMS)
+		mssraw.SMS_RESULT = smsResult.SMS_RESULT
+	and
+		mssraw.MSG_TYPE_INDICATOR = msgTypeIndicator.MSG_TYPE_INDICATOR
+	#end
+    and
+        eventtyperef.EVENT_ID = mssraw.EVENT_ID
+    and
+    	mssraw.EVNTSRC_ID = evntref.EVNTSRC_ID
+    and
+       mssraw.TAC *= tacref.TAC
+    and
+        mssraw.RAT = ratref.RAT
+    and
+    	mssraw.HIER321_ID = topologyref.HIER321_ID
+   
+    
+    #if($eventType==$ApplicationConstants.VOICE)
+     and 
+    mssraw.EXTERNAL_PROTOCOL_ID = mssprotocol.EXTERNAL_PROTOCOL_ID 
+   and 
+	mssraw.EXTERNAL_PROTOCOL_ID = extcausecoderef.PROTOCOL_ID	  	
+	
+	
+    and mssraw.EXTERNAL_CAUSE_CODE = extcausecoderef.EXTERNAL_CAUSE_CODE
+    #end
+    
+	) as RESULT
+ORDER  BY event_time DESC
+end

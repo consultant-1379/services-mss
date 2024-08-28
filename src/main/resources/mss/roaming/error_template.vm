@@ -1,0 +1,13 @@
+select 
+	#GET_NOT_NULL_COLUMN(["error_table", "suc_table"] $columnsToBeSelected)  
+	isnull(error_table.blocked_call,0) as error_call,
+	isnull(suc_table.suc_call,0) as suc_call
+from
+(
+    select
+    	#GET_COLUMNS($columnsToBeSelected) count(*) as blocked_call 
+    from
+    	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($errorTables "EVENT_E_MSS_CDR_ERR_RAW" $columnsToBeSelected $columnsToBeSelected)
+    group by
+    	#GET_COLUMNS_NO_COMMA_TRAILING($columnsToBeSelected)
+)as error_table

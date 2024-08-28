@@ -1,0 +1,58 @@
+## This template is used for MS Originating Unanswered Calls and MS Terminating Unanswered ranking (raw, aggregation).
+##
+## Template Parameters:
+## 		techPackTables, count, errorType=[DROPPED_CALLS,BLOCKED_CALLS], timerange=[TR_1, TR_3, TR_4]
+## Query Parameters:
+## 		:dateTo, :dateFrom
+##
+## Author: echimma
+#if($errorType == "MS_ORIGINATING_UNANSWERED")
+	#set($eventID = "0")
+#elseif($errorType == "MS_TERMINATING_UNANSWERED")
+	#set($eventID = "1")
+#end
+
+#if($timerange == "TR_1" || $timerange == "TR_2" )
+  #set($shouldUseAggrTables = false)
+#else
+  #set($shouldUseAggrTables = true)
+#end
+
+#set($selectedColumn=["IMSI", "CALLING_PARTY_NUM"])
+#set($selectedAggColumn=["IMSI", "CALLING_PARTY_NUM", "EVENT_ID", "NO_OF_UNANSWERED_CALLS"])
+#set($selectedColumns=["IMSI", "CALLING_PARTY_NUM", "NO_OF_UNANSWERED_CALLS"])
+#set($selectedSucTableColumn=["IMSI", "CALLING_PARTY_NUM", "EVENT_ID", "CALL_POSITION", "DISCONNECT_PARTY", "INTERNAL_CAUSE_CODE"])
+begin
+		select
+			#if($count > 0)
+            top $count
+			#end
+			rank() over (order by NO_OF_UNANSWERED_CALLS desc) as RANK,
+			#GET_COLUMNS_NO_COMMA_TRAILING($selectedColumn),
+			#if($shouldUseAggrTables)
+        		NO_OF_UNANSWERED_CALLS
+        		from (
+        			 select IMSI, CALLING_PARTY_NUM, sum(NO_OF_UNANSWERED_CALLS) as NO_OF_UNANSWERED_CALLS from (
+						select #GET_COLUMNS_NO_COMMA_TRAILING($selectedColumns) 
+						from
+							#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getSucTables() "suc_table" $selectedAggColumn $selectedAggColumn)
+						where 
+							EVENT_ID = $eventID) as tmp_suc_table
+        				group by
+							CALLING_PARTY_NUM, IMSI
+					 ) as temp_suc_table
+        	#else
+    			count(*) as NO_OF_UNANSWERED_CALLS
+				from 
+    			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getSucTables() "suc_table" $selectedSucTableColumn $selectedSucTableColumn)
+				where 
+    			EVENT_ID = $eventID
+    			and CALL_POSITION = 2
+    			and (DISCONNECT_PARTY = 0 or DISCONNECT_PARTY = 1)
+    			and (INTERNAL_CAUSE_CODE = 3 or INTERNAL_CAUSE_CODE = 4 or INTERNAL_CAUSE_CODE = 6)
+				group by
+    			CALLING_PARTY_NUM, IMSI
+			#end
+order by RANK
+
+end

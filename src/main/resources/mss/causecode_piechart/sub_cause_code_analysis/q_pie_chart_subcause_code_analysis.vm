@@ -1,0 +1,58 @@
+#DEFINE_CONSTANTS()
+
+#macro(MSS_SCCAS_QUERY_BY_CC $errTable)
+(
+select	
+	ccref.INTERNAL_CAUSE_CODE, 
+	fcref.FAULT_CODE,
+	fcref.FAULT_CODE_DESC,
+	fcref.ADVICE,
+	count(*),
+	IMSI
+from
+	dc.${errTable} errRef,
+	dc.DIM_E_MSS_INTERNAL_CAUSE_CODE as ccref,
+	dc.DIM_E_MSS_FAULT_CODE as fcref
+	#GROUP_TABLE_INFO()
+where
+	#GET_DATETIME_RANGE()
+	#MSS_GROUP_OR_SINGLE_INFO()
+	and #GET_TAC_EXCLUSION()
+	and errRef.FAULT_CODE = fcref.FAULT_CODE
+	and errRef.INTERNAL_CAUSE_CODE = ccref.INTERNAL_CAUSE_CODE
+	and errRef.INTERNAL_CAUSE_CODE = :$INTERNAL_CAUSE_CODE
+group by
+	ccref.INTERNAL_CAUSE_CODE,
+	fcref.FAULT_CODE,
+	fcref.FAULT_CODE_DESC,
+	fcref.ADVICE,
+	IMSI
+)
+#end
+
+select
+	err.INTERNAL_CAUSE_CODE as INTERNAL_CAUSE_CODE,
+	err.FAULT_CODE as FAULT_CODE,
+	err.FAULT_CODE_DESC as FAULT_CODE_DESC,
+	err.WHAT_NEXT as WHAT_NEXT,
+	sum(isnull(err.NO_OF_ERRORS, 0)) as NO_OF_ERRORS,
+	isnull(count(distinct(IMSI)),0) as NO_OF_TOTAL_ERR_SUBSCRIBERS		
+from (
+	#foreach ($errtable in $rawMssTables)
+		#MSS_SCCAS_QUERY_BY_CC($errtable)
+		#if($velocityCount < $rawMssTables.size())
+			union all
+		#end
+	#end
+) as err (INTERNAL_CAUSE_CODE, FAULT_CODE, FAULT_CODE_DESC, WHAT_NEXT, NO_OF_ERRORS, IMSI)
+
+group by
+	err.INTERNAL_CAUSE_CODE,
+	err.FAULT_CODE,
+	err.FAULT_CODE_DESC,
+	err.WHAT_NEXT
+order by
+	err.INTERNAL_CAUSE_CODE,
+	err.FAULT_CODE,
+	err.FAULT_CODE_DESC,
+	err.WHAT_NEXT

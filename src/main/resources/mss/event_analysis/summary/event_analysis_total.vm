@@ -1,0 +1,47 @@
+##Define some constants that are used by the macros
+#DEFINE_CONSTANTS()
+
+select
+	#if($count > 0)
+		top $count
+	#end
+	#GET_COLUMNS($selectColumns)
+	#GET_COLUMNS($commonColumns)
+	#GET_COLUMNS($evntDespColumn)
+	#REPLACE_BY_SUM_STATEMENT($listOfErrorColumns $sumErrStatementAlias),
+    #REPLACE_BY_SUM_STATEMENT($listOfSuccessColumns $sumSucStatementAlias),
+    #REPLACE_BY_SUM_STATEMENT($listOfAllColumns $sumTotalStatementAlias),
+    #CALCULATE_SUCCESS_RATIO()
+	$no_of_impacted_subscriber
+from
+	(
+    select
+		#if($typeToNodeTableView.length() > 0)
+			#GET_COLUMNS_BY_TABLE_WITH_ALIAS($typeToNodeTableView $selectColumns)
+		#else
+			#CONVERT_TO_IS_NULL_FUNC_STRING($allTableAlias $selectColumns)
+		#end
+    	#CONVERT_TO_IS_NULL_FUNC_STRING($allTableAlias $commonColumns)
+    	#GET_COLUMNS_BY_TABLE_WITH_ALIAS($evntDespTable $evntDespColumn)
+    	#IF_NULL_ASSIGN_ZERO($listOfErrorColumns)
+        #IF_NULL_ASSIGN_ZERO_NO_COMMA_TRAILING($listOfSuccessColumns)	   	
+        #if ($no_of_impacted_subscriber != "")
+            #if($timerange == "TR_1")
+                ,
+                isnull(NO_OF_IMPACTED_SUBSCRIBER,0) as NO_OF_IMPACTED_SUBSCRIBER			    												
+            #else
+                $no_of_impacted_subscriber				
+            #end
+        #end
+    from
+    	$allTablesQueryPart
+	group by
+		#GET_COLUMNS($selectColumns)
+		#GET_COLUMNS($commonColumns)
+		#GET_COLUMNS($evntDespColumn)
+		#GET_COLUMNS($listOfErrorColumns)
+		#GET_COLUMNS_NO_COMMA_TRAILING($listOfSuccessColumns)
+		$no_of_impacted_subscriber
+	)as summary
+	order by 
+	#GET_COLUMNS_NO_COMMA_TRAILING($commonColumns)

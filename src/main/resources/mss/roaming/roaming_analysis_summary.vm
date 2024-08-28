@@ -1,0 +1,38 @@
+#if(${roamingobject} == $ApplicationConstants.TYPE_ROAMING_COUNTRY)
+  #set($op_or_country = "COUNTRY")
+#elseif(${roamingobject} == $ApplicationConstants.TYPE_ROAMING_OPERATOR)
+  #set($op_or_country = "OPERATOR")
+#end
+##-----------------------------------------------------------------------------
+## Macro used to generate Operator and Country table from DIM_E_SGEH_MCCMNC
+## $table table name
+## $isOpOrCountry is used for Operator or Country  
+##-----------------------------------------------------------------------------
+
+#macro (GET_OPERATOR_COUNTRY_TABLE $table $isOpOrCountry)
+  #if ($isOpOrCountry == "OPERATOR")
+     (select MCC as IMSI_MCC, MNC as IMSI_MNC, OPERATOR from dc.DIM_E_SGEH_MCCMNC) as $table
+  #elseif ($isOpOrCountry == "COUNTRY")
+     (select distinct MCC as IMSI_MCC, COUNTRY from dc.DIM_E_SGEH_MCCMNC) as $table
+  #end
+#end
+
+begin
+
+    select 
+    	isnull(result_table.error_call,0) as errors, 
+		isnull(result_table.suc_call, 0) as success, 
+    	OP_COUNTRY_TABLE.$op_or_country as $op_or_country
+	from
+	(
+        	$errorTable
+    
+        	full outer join
+    
+        	$sucTable
+    
+    		on #GET_JOIN("error_table" "suc_table" $columnsToBeSelected)
+	) as result_table
+  left outer join #GET_OPERATOR_COUNTRY_TABLE("OP_COUNTRY_TABLE" $op_or_country)
+  on #GET_JOIN("result_table" "OP_COUNTRY_TABLE" $columnsToBeSelected)
+end

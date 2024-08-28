@@ -1,0 +1,101 @@
+##=============================================================================
+##
+## IMSI Ranking of MSS towards aggregation tables
+##
+## Description:
+##
+##    Provide the top n IMSIs based on failures, whether the subscriber is VIP or not need to be diplayed too
+##
+## Velocity Parameter:
+##  
+## timerange : one of { TR_3, TR_4}
+##  
+##     TR_3 : normally query against 15min agg
+##     TR_4 : normally query against daily agg
+##
+## count: top N IMSI
+## techPackTables: see TechPackTables POJO
+##
+## Named PreparedStatement Parameter:
+##
+##    :dateFrom   starting time
+##    :dateTo     ending time
+## Author
+##   
+##
+##=============================================================================
+#set($time = $ApplicationMethods.returnAggregateViewType(${timerange}))
+#set($sucTables=$techPackTables.getSucTables())
+#set($columnsToSelectFromRawTables=["IMSI"])
+
+#DEFINE_CONSTANTS()
+
+
+begin
+
+## SQL for NO_OF_ERRORS into a temp table: #temp_imsi_ranking_table
+    select
+#if($count > 0)
+    top $count
+#end 
+    rank() over (order by NO_OF_ERRORS desc) as RANK,
+    IMSI,
+    sum(isnull(NO_OF_ERRORS, 0)) as NO_OF_ERRORS
+    into
+#temp_imsi_ranking_table
+    from
+    (
+#set ($techPackSize = $techPackTables.getTechPacks().size())
+#foreach($techPack in $techPackTables.getTechPacks())
+     #if ($errorType == $ApplicationConstants.DROPPED_CALLS)
+         select IMSI,NO_OF_ERRORS from dc.${techPack.getTechPackName()}_VOICE_IMSI_RANK_DROP_CALL$time
+     #elseif($errorType == $ApplicationConstants.BLOCKED_CALLS)
+         select IMSI,NO_OF_ERRORS from dc.${techPack.getTechPackName()}_VOICE_IMSI_RANK$time
+     #end
+     where
+        #GET_DATETIME_RANGE()
+        and IMSI is not null
+        and IMSI <> 0
+#if($velocityCount < $techPackSize)
+     union all
+#end
+#end
+    ) as ranking_tables        
+    group by
+    IMSI
+    order by
+    NO_OF_ERRORS;
+
+## SQL for get final result   
+select
+#if($count > 0)
+    top $count
+#end 
+	RANK,
+	IMSI,
+	NO_OF_ERRORS,
+	NO_OF_SUCCESSES
+from
+	(
+        select 
+            RANK,
+            rank_error_table.IMSI,
+            NO_OF_ERRORS,
+            isnull(NO_OF_SUCCESSES, 0) as NO_OF_SUCCESSES
+        from 
+        	#temp_imsi_ranking_table as rank_error_table 
+        	left outer join
+            (
+            	select 
+            		IMSI, 
+            		count(*) as NO_OF_SUCCESSES 
+            	from 
+            		#REPLACE_RAW_VIEW_WITH_RAW_TABLES_FILTER_ON_TIME_AND_SPECIFY_COLUMNS_WITH_TAC_EXCLUSION_IMSI0_EXCLUSION($techPackTables.getSucTables() "rawsucview" $columnsToSelectFromRawTables)
+                group by IMSI
+        	) as suc_table
+        	on rank_error_table.IMSI = suc_table.IMSI
+	) as result_table
+order by RANK
+
+end
+

@@ -1,0 +1,24 @@
+begin
+
+select
+   dateformat(tmp_st, 'yyyy-mm-dd hh:mm:ss.S') as TS,
+   sum(isnull(case when EVENT_ID = 0 and (TELE_SERVICE_CODE != 18 or TELE_SERVICE_CODE is null) then $ApplicationConstants.NO_OF_SUCCESSES_CALLS  end, 0)) as MSOriginating_Complete,
+   sum(isnull(case when EVENT_ID = 0 and (TELE_SERVICE_CODE != 18 or TELE_SERVICE_CODE is null) then $ApplicationConstants.NO_OF_BLOCKED_CALLS  end, 0)) as MSOriginating_Blocked,
+   sum(isnull(case when EVENT_ID = 0 and (TELE_SERVICE_CODE != 18 or TELE_SERVICE_CODE is null) then $ApplicationConstants.NO_OF_DROPPED_CALLS  end, 0)) as MSOriginating_Dropped,
+   sum(isnull(case when EVENT_ID = 0 and TELE_SERVICE_CODE = 18 then $ApplicationConstants.NO_OF_SUCCESSES_CALLS  end, 0)) as MSOriginating_Emergency_Complete,
+   sum(isnull(case when EVENT_ID = 0 and TELE_SERVICE_CODE = 18 then $ApplicationConstants.NO_OF_BLOCKED_CALLS  end, 0)) as MSOriginating_Emergency_Blocked,
+   sum(isnull(case when EVENT_ID = 0 and TELE_SERVICE_CODE = 18 then $ApplicationConstants.NO_OF_DROPPED_CALLS  end, 0)) as MSOriginating_Emergency_Dropped,
+   sum(isnull(case when EVENT_ID = 1 then $ApplicationConstants.NO_OF_SUCCESSES_CALLS end, 0)) as MSTerminating_Complete,
+   sum(isnull(case when EVENT_ID = 1 then $ApplicationConstants.NO_OF_BLOCKED_CALLS end, 0)) as MSTerminating_Blocked,
+   sum(isnull(case when EVENT_ID = 1 then $ApplicationConstants.NO_OF_DROPPED_CALLS end, 0)) as MSTerminating_Dropped,
+   sum(isnull(case when EVENT_ID = 2 then $ApplicationConstants.NO_OF_SUCCESSES_CALLS end, 0)) as MSCallForwarding_Complete,
+   sum(isnull(case when EVENT_ID = 2 then $ApplicationConstants.NO_OF_BLOCKED_CALLS end, 0)) as MSCallForwarding_Blocked,
+   sum(isnull(case when EVENT_ID = 2 then $ApplicationConstants.NO_OF_DROPPED_CALLS end, 0)) as MSCallForwarding_Dropped,
+   sum(isnull(case when EVENT_ID = 3 then $ApplicationConstants.NO_OF_SUCCESSES_CALLS end, 0)) as MSRoamingCall_Complete,
+   sum(isnull(case when EVENT_ID = 3 then $ApplicationConstants.NO_OF_BLOCKED_CALLS end, 0)) as MSRoamingCall_Blocked,
+   sum(isnull(case when EVENT_ID = 3 then $ApplicationConstants.NO_OF_DROPPED_CALLS end, 0)) as MSRoamingCall_Dropped
+from 
+   $data_table_subsql
+group by tmp_st order by tmp_st
+
+end

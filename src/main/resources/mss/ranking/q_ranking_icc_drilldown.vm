@@ -1,0 +1,111 @@
+#DEFINE_CONSTANTS()
+#set($columns=[$ApplicationConstants.INTERNAL_CC_SQL_NAME])
+
+#if($useAggregationTables)
+	#set($occurrences="sum(NO_OF_ERRORS) as OCCURRENCES")
+	#set($tables=$techPackAggViews)	
+#else
+	#set($occurrences="count(*) as OCCURRENCES")
+	#set($tables=$techPackTables)	
+#end
+
+begin
+
+select 
+#if($count > 0)
+	top $count
+#end
+		INTERNAL_CAUSE_CODE_REF.INTERNAL_CAUSE_CODE as INTERNAL_CAUSE_CODE,
+	    INTERNAL_CAUSE_CODE_REF.INTERNAL_CAUSE_CODE_DESC as INTERNAL_CAUSE_CODE_DESC,
+        RESULT_DATA.FAULT_CODE as FAULT_CODE_ID, 
+        FCODE.FAULT_CODE_DESC as FAULT_CODE, 
+        FCODE.ADVICE as RECOMENDED_ACTION, 
+        RESULT_DATA.OCCURRENCES,  
+        RESULT_DATA.IMPACTED_SUBSCRIBERS 
+from(
+    select 
+        isnull(ERROR_VIEW.INTERNAL_CAUSE_CODE, IMPACTED_SUBSCRIBER.INTERNAL_CAUSE_CODE) as INTERNAL_CAUSE_CODE, 
+        isnull(ERROR_VIEW.FAULT_CODE, IMPACTED_SUBSCRIBER.FAULT_CODE) as FAULT_CODE, 
+        isnull(ERROR_VIEW.OCCURRENCES,0) as OCCURRENCES, 
+        isnull(IMPACTED_SUBSCRIBER.IMPACTED_SUBSCRIBERS,0) as IMPACTED_SUBSCRIBERS 
+	from
+	(
+        select 
+            isnull(error_blocked.INTERNAL_CAUSE_CODE, error_dropped.INTERNAL_CAUSE_CODE) as INTERNAL_CAUSE_CODE, 
+            isnull(error_blocked.FAULT_CODE, error_dropped.FAULT_CODE) as FAULT_CODE, 
+            isnull(error_blocked.OCCURRENCES,0) + isnull(error_dropped.OCCURRENCES,0) as OCCURRENCES 
+        from
+        (
+            select 
+				INTERNAL_CAUSE_CODE,
+                FAULT_CODE, 
+                $occurrences 
+            from
+				#if($useAggregationTables)
+					#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS($tables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" $columns)
+				#else
+					#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_WITH_TAC_EXCLUSION($tables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" $columns)
+				#end
+            group by 
+                INTERNAL_CAUSE_CODE, FAULT_CODE 
+        ) as error_blocked
+        full outer join
+        (
+            select 
+				INTERNAL_CAUSE_CODE, 
+                FAULT_CODE, 
+                $occurrences
+            from
+				#if($useAggregationTables)
+					#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS($tables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" $columns)
+				#else
+					#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_WITH_TAC_EXCLUSION($tables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" $columns)
+				#end
+            group by 
+                INTERNAL_CAUSE_CODE, FAULT_CODE 
+        ) as error_dropped 
+        on(error_blocked.FAULT_CODE=error_dropped.FAULT_CODE)
+	) as ERROR_VIEW
+
+    full outer join
+
+	(
+        select 
+            INTERNAL_CAUSE_CODE,
+            FAULT_CODE, 
+            count(distinct(imsi)) as IMPACTED_SUBSCRIBERS
+        from
+            (
+                select
+                    INTERNAL_CAUSE_CODE,
+                    FAULT_CODE, 
+                    imsi
+                from 
+                    #REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" $columns) 
+
+                union all
+
+                select
+                    INTERNAL_CAUSE_CODE,
+                    FAULT_CODE, 
+                    imsi
+                from 
+                    #REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" $columns)
+			) as temp
+        group by
+            INTERNAL_CAUSE_CODE, FAULT_CODE    
+	) as IMPACTED_SUBSCRIBER
+    on(
+        ERROR_VIEW.INTERNAL_CAUSE_CODE = IMPACTED_SUBSCRIBER.INTERNAL_CAUSE_CODE and 
+        ERROR_VIEW.FAULT_CODE = IMPACTED_SUBSCRIBER.FAULT_CODE
+    )
+) as RESULT_DATA 
+left outer join
+    dc.DIM_E_MSS_FAULT_CODE as FCODE
+on
+    RESULT_DATA.FAULT_CODE = FCODE.FAULT_CODE
+left outer join
+	dc.DIM_E_MSS_INTERNAL_CAUSE_CODE as INTERNAL_CAUSE_CODE_REF
+on
+	RESULT_DATA.INTERNAL_CAUSE_CODE = INTERNAL_CAUSE_CODE_REF.INTERNAL_CAUSE_CODE
+end

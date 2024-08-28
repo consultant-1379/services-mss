@@ -1,0 +1,199 @@
+## Get MSS KPI Ratio 
+## key : one of {SUC, ERR, TOTAL}
+## echimma 12/05/2011
+##Parameters:
+## type
+## drilltype
+#DEFINE_CONSTANTS()
+
+#set($event_ID=$ApplicationConstants.EVENT_ID_SQL_PARAM)
+#set($time = $ApplicationMethods.returnAggregateViewType(${timerange}))
+
+#if(${type}==$ApplicationConstants.TYPE_BSC)
+	#if(${drilltype}==$ApplicationConstants.TYPE_BSC)
+    	#set($selectColumn="HIER321_ID")
+    	#set($groupByColumn="HIER321_ID")
+    	#set($nodeName="AccessArea")
+    	#set($topologyName="HIERARCHY_1")
+    	#set($condictionValues=["$ApplicationConstants.CONTROLLER_SQL_ID"])
+		#set($returnValues=["$ApplicationConstants.CONTROLLER_SQL_ID"])
+    	#set($topologyColumns=["Vendor", "HIERARCHY_1", "HIER3_ID", "HIER321_ID"])
+    	#set($$topologyTableNames=["DIM_E_SGEH_HIER321", "DIM_Z_SGEH_HIER321"])
+		#set($topologyCondictionValues=["$ApplicationConstants.CONTROLLER_SQL_ID"])
+	#end
+#elseif(${type}==$ApplicationConstants.TYPE_MSC)
+	#if(${drilltype}==$ApplicationConstants.TYPE_MSC)
+    	#set($selectColumn="HIER3_ID")
+    	#set($groupByColumn="HIER3_ID")
+    	#set($nodeName="Controller")
+    	#set($topologyName="HIERARCHY_3")
+    	#set($condictionValues=["$ApplicationConstants.EVENT_SOURCE_SQL_ID"])
+		#set($returnValues=["$ApplicationConstants.EVENT_SOURCE_SQL_ID"])
+    	#set($topologyColumns=["VENDOR", "HIERARCHY_3", "HIER3_ID"])
+    	#set($$topologyTableNames=["DIM_E_SGEH_HIER321", "DIM_Z_SGEH_HIER321"])
+		#set($topologyCondictionValues=[])
+	#elseif(${drilltype}==$ApplicationConstants.TYPE_BSC)
+		#set($selectColumn="HIER321_ID")
+    	#set($groupByColumn="HIER321_ID")
+    	#set($nodeName="AccessArea")
+    	#set($topologyName="HIERARCHY_1")
+		#set($returnValues=["$ApplicationConstants.EVENT_SOURCE_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID"])
+    	#set($condictionValues=["$ApplicationConstants.CONTROLLER_SQL_ID"])
+    	#set($topologyColumns=["VENDOR", "HIERARCHY_1", "HIER3_ID", "HIER321_ID"])
+    	#set($topologyTableNames=["DIM_E_SGEH_HIER321", "DIM_Z_SGEH_HIER321"])
+		#set($topologyCondictionValues=["$ApplicationConstants.CONTROLLER_SQL_ID"])
+	#end
+#end
+
+#if($eventID=="6")
+##Location Service
+	#set($eventType="LOC")
+#elseif($eventID=="4" || $eventID=="5")
+	#set($eventType="SMS")
+#else
+	#set($eventType="VOICE")
+##Voice Service
+#end
+
+#macro (GET_AGGRATION_TABLE $aggrationTable $aggrationView $time $sumColumns $selectColumn $groupByColumn $condictionValues)
+	select
+		$selectColumn,
+		#REPLACE_WITH_SUM_STATEMET_NO_COMMA_TRAILING($sumColumns)
+    from 
+        #REPLACE_RAW_VIEW_WITH_RAW_TABLES($aggrationTable $aggrationView)
+	where	
+		EVENT_ID = :$event_ID and
+		#GET_COLUMNS_WHERE($condictionValues)
+    group by 
+        $groupByColumn
+#end
+
+#macro (SELECT_TABLES_BY_COLUMNS_AND_TABLENAME $columns $tableNames $condictionValues)
+	#foreach($tableName in $tableNames)
+    	(
+    		select
+				#GET_COLUMNS_NO_COMMA_TRAILING($columns)
+    		from
+    			$tableName
+			#if($condictionValues.size()>0)
+			where
+				#GET_COLUMNS_WHERE($condictionValues)
+			#end
+			group by
+				#GET_COLUMNS_NO_COMMA_TRAILING($columns)				
+    	)
+    	 #if ( $velocityCount <= 1)
+    		union all
+    	#end
+	#end
+#end
+
+#macro (SELECT_RETURN_COLUMNS $columns)
+	#foreach ($column in $columns)
+        #if ( $velocityCount <= 1)
+        :$column as $column
+        #else
+        ,:$column as $column
+        #end
+    #end
+#end
+
+begin
+
+select
+#if($count > 0)
+	top $count
+#end
+	:$event_ID as $event_ID,
+    #SELECT_RETURN_COLUMNS($returnValues),
+	$selectColumn,
+    VENDOR,
+    $nodeName,
+	EventType,
+	NO_OF_ERRORS,
+	NO_OF_SUCCESSES,
+	Total,
+	#CALCULATE_SUCCESS_RATIO(),
+	ImpactedSubScribers
+from
+	(
+    select
+        eref.Vendor as VENDOR,
+		eref.$topologyName as $nodeName,
+		data_table.$selectColumn as $selectColumn,
+        etref.EVENT_ID_DESC as EventType,
+        data_table.Failure as NO_OF_ERRORS,
+        data_table.Success as NO_OF_SUCCESSES,
+        data_table.Success+data_table.Failure as Total,	
+        data_table.ImpactedSubScribers as ImpactedSubScribers
+	from
+		(
+			select
+				isnull(suc_table.$selectColumn,failure_table.$selectColumn) as $selectColumn,
+    			isnull(suc_table.NO_OF_SUCCESSES,0) as Success,
+    			isnull(failure_table.failure_num,0) as Failure,
+                isnull(failure_table.ImpactedSubScribers,0) as ImpactedSubScribers
+    		from
+    			(
+				#if($eventType=="VOICE")
+					#GET_AGGRATION_TABLE($techPackTables.getSucTables() "success_table" $time ["NO_OF_SUCCESSES"] $selectColumn $groupByColumn $condictionValues)
+				#elseif($eventType=="LOC")
+					#GET_AGGRATION_TABLE($techPackTables.getSucTables($ApplicationConstants.KEY_TYPE_LOC_SERVICE_SUC) "success_table" $time ["NO_OF_SUCCESSES"] $selectColumn $groupByColumn $condictionValues)
+				#elseif($eventType=="SMS")
+					#GET_AGGRATION_TABLE($techPackTables.getSucTables($ApplicationConstants.KEY_TYPE_SMS_SUC) "success_table" $time ["NO_OF_SUCCESSES"] $selectColumn $groupByColumn $condictionValues)
+				#end
+				) as suc_table
+    			full outer join
+				#if($eventType=="VOICE")
+				(
+					select
+						isnull(drop_table.$selectColumn, error_table.$selectColumn) as $selectColumn,
+						isnull(drop_table.NO_OF_ERRORS, 0) + isnull(error_table.NO_OF_ERRORS, 0) as failure_num,
+						isnull(drop_table.NO_OF_TOTAL_ERR_SUBSCRIBERS, 0) + isnull(error_table.NO_OF_TOTAL_ERR_SUBSCRIBERS, 0) as ImpactedSubScribers
+					from
+					(
+						#GET_AGGRATION_TABLE($techPackTables.getErrTables("DROP_CALL") "drop_table" $time ["NO_OF_ERRORS", "NO_OF_TOTAL_ERR_SUBSCRIBERS"] $selectColumn $groupByColumn $condictionValues)
+					) as drop_table 
+					full outer join
+					(
+						#GET_AGGRATION_TABLE($techPackTables.getErrTables() "error_table" $time ["NO_OF_ERRORS", "NO_OF_TOTAL_ERR_SUBSCRIBERS"] $selectColumn $groupByColumn $condictionValues)
+					) as error_table
+					on
+						drop_table.$groupByColumn = error_table.$groupByColumn
+				) as failure_table
+				#else
+				(
+					select
+						isnull(failure_table.$selectColumn, 0) as $selectColumn,
+						isnull(failure_table.NO_OF_ERRORS, 0) as failure_num,
+						isnull(failure_table.NO_OF_TOTAL_ERR_SUBSCRIBERS, 0) as ImpactedSubScribers
+					from
+					(
+					#if($eventType=="LOC")
+						#GET_AGGRATION_TABLE($techPackTables.getErrTables($ApplicationConstants.KEY_TYPE_LOC_SERVICE_ERR) "failure_table" $time ["NO_OF_ERRORS", "NO_OF_TOTAL_ERR_SUBSCRIBERS"] $selectColumn $groupByColumn $condictionValues)
+					#elseif($eventType=="SMS")
+						#GET_AGGRATION_TABLE($techPackTables.getErrTables($ApplicationConstants.KEY_TYPE_SMS_ERR) "failure_table" $time ["NO_OF_ERRORS", "NO_OF_TOTAL_ERR_SUBSCRIBERS"] $selectColumn $groupByColumn $condictionValues)
+					#end	
+					) as failure_table
+				) as failure_table
+				#end
+				on suc_table.$groupByColumn = failure_table.$groupByColumn
+		) as data_table,
+		(
+			#SELECT_TABLES_BY_COLUMNS_AND_TABLENAME($topologyColumns $topologyTableNames $topologyCondictionValues)
+		) as eref,
+    	(
+    		select
+    			EVENT_ID_DESC
+    		from
+    			DIM_E_MSS_EVENTTYPE
+    		where
+    			EVENT_ID = :$event_ID
+    	)as etref
+    	where
+			data_table.$selectColumn = eref.$selectColumn
+	) as result_data
+	order by
+		SuccessRatio
+		
+end

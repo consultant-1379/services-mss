@@ -1,0 +1,128 @@
+##
+#if($type == "BSC")
+	#set($selectedColumn = "HIER3_ID")
+	#set($ratValue = "0")
+#elseif($type == "RNC")
+	#set($selectedColumn = "HIER3_ID")
+	#set($ratValue = "1")
+#else
+	##if($type == "CELL")
+	#set($selectedColumn = "HIER321_ID")
+#end
+
+#if($timerange == "TR_1" || $timerange == "TR_2" )
+  #set($shouldUseAggrTables = false)
+#else
+  #set($shouldUseAggrTables = true)
+#end
+
+#macro (SELECT_DROP_OR_BLOCK_RANKING_RNC_BSC_CELL $shouldBeAggr $techPackTables $columnType)
+	select
+		$columnType,
+		#if($shouldBeAggr)
+			SUM(NO_OF_ERRORS) as FAILURES
+		#else
+			count(*) as FAILURES
+		#end
+    from
+		#if($type == "BSC" || $type == "RNC")
+		( select * from
+		#end
+		#if($shouldBeAggr)
+			#if($errorType == $ApplicationConstants.DROPPED_CALLS)
+				#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getErrTables("DROP_CALL") "drop_table" [$columnType, "NO_OF_ERRORS", "RAT"] [$columnType])
+			#else
+				##if($errorType == $ApplicationConstants.BLOCKED_CALLS)
+				#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getErrTables() "err_table" [$columnType, "NO_OF_ERRORS", "RAT"] [$columnType])
+			#end
+		#else
+			#if($errorType == $ApplicationConstants.DROPPED_CALLS)
+				#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "drop_table" [$columnType, "IMSI", "RAT"] [$columnType])
+			#else
+				##if($errorType == $ApplicationConstants.BLOCKED_CALLS)
+				#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "err_table" [$columnType, "IMSI", "RAT"] [$columnType])
+			#end
+		#end
+		#if($type == "BSC" || $type == "RNC")
+			where RAT = $ratValue
+		) as temp_table
+		#end
+	group by
+		$columnType
+#end
+
+#macro (SELECT_SUC_RANKING_RNC_BSC_CELL $shouldBeAggr $techPackTables $columnType)
+	select
+		$columnType,
+		#if($shouldBeAggr)
+			SUM(NO_OF_SUCCESSES) as SUCCESSES
+		#else
+			count(*) as SUCCESSES
+		#end
+	from
+		#if($type == "BSC" || $type == "RNC")
+		( select * from
+		#end
+        #if($shouldBeAggr)
+			#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getSucTables() "suc_table" [$columnType, "NO_OF_SUCCESSES", "RAT"] [$columnType])
+		#else
+			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getSucTables() "suc_table" [$columnType, "IMSI", "RAT"] [$columnType])
+		#end
+		#if($type == "BSC" || $type == "RNC")
+			where RAT = $ratValue
+		) as temp_table
+		#end
+	group by
+		$columnType
+#end
+
+#macro (SELECT_HIER_TABLE_RANKING_RNC_BSC_CELL)
+    #if($type == "RNC" || $type == "BSC")
+      select distinct RAT, HIERARCHY_3, HIER3_ID, VENDOR from DIM_Z_SGEH_HIER321 where RAT = $ratValue
+      union all 
+      select distinct RAT, HIERARCHY_3, HIER3_ID, VENDOR from DIM_E_SGEH_HIER321 where RAT = $ratValue
+    #else
+	##if($type == "CELL")
+      select RAT, HIERARCHY_3, HIERARCHY_1, HIER3_ID, HIER321_ID, VENDOR from DIM_Z_SGEH_HIER321
+      union all 
+      select RAT, HIERARCHY_3, HIERARCHY_1, HIER3_ID, HIER321_ID, VENDOR from DIM_E_SGEH_HIER321
+    #end
+#end
+    
+begin
+
+select 
+    #if($count > 0)
+        top $count
+    #end 
+    result_data.$selectedColumn as $selectedColumn,
+    rank() over (order by result_data.FAILURES desc) as RANK,
+    DIM_E_SGEH_RAT.RAT_DESC as RAT_DESC,
+    DIM_E_SGEH_RAT.RAT as RAT,
+    VENDOR as RAN_VENDOR,
+    hier_table.HIERARCHY_3 as Controller,
+    #if($type == "CELL")
+    hier_table.HIERARCHY_1 as 'Access Area',
+    #end
+    FAILURES,
+    SUCCESSES
+from 
+    (select 
+        isnull(err_call.$selectedColumn, suc_call.$selectedColumn) as $selectedColumn,
+        isnull(err_call.FAILURES, 0) as FAILURES,
+        isnull(suc_call.SUCCESSES, 0) as SUCCESSES
+    from 
+		(#SELECT_DROP_OR_BLOCK_RANKING_RNC_BSC_CELL($shouldUseAggrTables $techPackTables $selectedColumn)
+	)as err_call 
+    full outer join
+		(#SELECT_SUC_RANKING_RNC_BSC_CELL($shouldUseAggrTables $techPackTables $selectedColumn))  as suc_call
+		on err_call.$selectedColumn = suc_call.$selectedColumn ) as result_data
+	left outer join
+		(#SELECT_HIER_TABLE_RANKING_RNC_BSC_CELL()) as  hier_table 
+		on result_data.$selectedColumn = hier_table.$selectedColumn
+    left outer join
+		DIM_E_SGEH_RAT 
+		on hier_table.RAT = DIM_E_SGEH_RAT.RAT
+order by RANK
+
+end

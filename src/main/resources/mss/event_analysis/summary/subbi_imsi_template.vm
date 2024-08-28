@@ -1,0 +1,20 @@
+select
+	#GET_COLUMNS($joinColumns)
+	#GET_COLUMNS($commonColumns)
+	#GET_COLUMNS_BY_TABLE_NO_COMMA_TRAILING("tmp" ["IMSI"])
+from
+	#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS($tables "tmp" $imsiFilterColumns $extraTable $useTACExclusion)
+where
+	#GET_COLUMNS_WHERE_BY_TABLE_EXTRA_TABLE_EXTRA_COLUMN("tmp" $joinColumns $extraTable $extraJoin)
+	#if($HOUR)
+		and
+		HOUR_ID = :HOUR_ID
+	#end
+	#if($DAY)
+		and
+		dayname(cast (DATEADD(MINUTE, ${tzOffset}, DATETIME_ID) as DATE)) = :DAY
+	#end
+	#if($SUBBI_HIER321_ID)
+		and
+		HIER321_ID = :HIER321_ID
+	#end

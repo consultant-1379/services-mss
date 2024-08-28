@@ -1,0 +1,85 @@
+## This template is used for MSC raw and aggregation ranking.
+##
+## Template Parameters:
+## 		techPackTables, count, errorType=[DROPPED_CALLS,BLOCKED_CALLS], timerange=[TR_1, TR_3, TR_4]
+## Query Parameters:
+## 		:dateTo, :dateFrom
+##
+## Author: echimma
+
+#set($selectedColumn = "EVNTSRC_ID")
+
+#if($timerange == "TR_1" || $timerange == "TR_2" )
+  #set($shouldUseAggrTables = false)
+#else
+  #set($shouldUseAggrTables = true)
+#end
+
+begin
+
+select
+	#if($count > 0)
+    top $count
+	#end
+	result_data.$selectedColumn,
+	rank() over (order by result_data.FAILURES desc) as RANK,
+	topo_table.VENDOR as VENDOR,
+	topo_table.EVENT_SOURCE_NAME as MSC,
+	FAILURES,
+	SUCCESSES
+from
+	(select 
+		isnull(err_call.$selectedColumn, suc_call.$selectedColumn) as $selectedColumn,
+		isnull(err_call.FAILURES, 0) as FAILURES,
+		isnull(suc_call.SUCCESSES, 0) as SUCCESSES
+	from 
+		(
+			select
+				$selectedColumn,
+				#if($shouldUseAggrTables)
+					sum(NO_OF_ERRORS) as FAILURES
+				#else
+					count(*) as FAILURES
+				#end
+			from 
+				#if($shouldUseAggrTables)
+					#if($errorType == $ApplicationConstants.DROPPED_CALLS)
+						#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getErrTables("DROP_CALL") "drop_table" [$selectedColumn, "NO_OF_ERRORS"] [$selectedColumn])
+					#elseif($errorType == $ApplicationConstants.BLOCKED_CALLS)
+						#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getErrTables() "err_table" [$selectedColumn, "NO_OF_ERRORS"] [$selectedColumn])
+					#end
+				#else
+					#if($errorType == $ApplicationConstants.DROPPED_CALLS)
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "dropped_table" [$selectedColumn] [$selectedColumn])
+					#elseif($errorType == $ApplicationConstants.BLOCKED_CALLS)
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "err_table" [$selectedColumn] [$selectedColumn])
+					#end
+				#end
+			group by
+				$selectedColumn
+		) as err_call
+		full outer join
+		(
+			select
+				$selectedColumn,
+				#if($shouldUseAggrTables)
+					sum(NO_OF_SUCCESSES) as SUCCESSES
+				#else
+					count(*) as SUCCESSES
+				#end
+			from
+				#if($shouldUseAggrTables)
+					#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getSucTables() "suc_table" [$selectedColumn, "NO_OF_SUCCESSES"] [$selectedColumn])
+				#else
+					#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getSucTables() "suc_table" [$selectedColumn] [$selectedColumn])
+				#end
+			group by
+				$selectedColumn
+		) as suc_call
+		on err_call.$selectedColumn = suc_call.$selectedColumn ) as result_data
+		left outer join
+		DIM_E_MSS_EVNTSRC as topo_table
+		on topo_table.EVNTSRC_ID = result_data.EVNTSRC_ID
+order by RANK
+
+end

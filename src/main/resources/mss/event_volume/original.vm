@@ -1,0 +1,8 @@
+(select 
+    #GET_COLUMNS($commonColumns) 
+    $aggColumn
+  from #REPLACE_VIEW_WITH_TABLES_AND_CONDITION($tables "tmp" $filterColumns $groupCondition $nodeCondition $whereConditions $useExclusiveTac) 
+  full outer join #GET_CHART_TIMES($starttime $endtime $interval)
+  on #GET_DATETIME_RANGE_TS()
+  group by #GET_COLUMNS_NO_COMMA_TRAILING($commonColumns) 
+) as $tableAlias (#GET_COLUMNS($commonColumns) $aggColumnAlias)

@@ -1,0 +1,59 @@
+#if(${roamingobject} == $ApplicationConstants.TYPE_ROAMING_COUNTRY)
+  #set($op_or_country = "COUNTRY")
+#elseif(${roamingobject} == $ApplicationConstants.TYPE_ROAMING_OPERATOR)
+  #set($op_or_country = "OPERATOR")
+#end
+##-----------------------------------------------------------------------------
+## Macro used to generate Operator and Country table from DIM_E_SGEH_MCCMNC
+## $table table name
+## $isOpOrCountry is used for Operator or Country  
+##-----------------------------------------------------------------------------
+
+
+#macro (GET_OPERATOR_COUNTRY_TABLE $table $isOpOrCountry)
+  #if ($isOpOrCountry == "OPERATOR")
+    (select MCC as IMSI_MCC, MNC as IMSI_MNC, OPERATOR from dc.DIM_E_SGEH_MCCMNC) as $table
+  #elseif ($isOpOrCountry == "COUNTRY")
+    (select distinct MCC as IMSI_MCC, COUNTRY from dc.DIM_E_SGEH_MCCMNC) as $table
+  #end
+#end
+
+begin
+
+SELECT
+    $op_or_country,
+    sum(impacted_subscriber)
+FROM
+(    
+    SELECT
+          OP_COUNTRY_TABLE.$op_or_country AS $op_or_country,  
+          impacted_subscriber
+    FROM
+    (
+##
+        select
+        	#GET_COLUMNS($columnsToBeSelected) count(distinct(IMSI)) as impacted_subscriber 
+        from
+        (
+        	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($errorTables "" $columnsToBeSelectedImsi $columnsToBeSelected)
+        	union all
+        	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($sucTables "" $columnsToBeSelectedImsi $columnsToBeSelected)
+        	union all
+        	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($dropCallTables "" $columnsToBeSelectedImsi $columnsToBeSelected)
+        	union all
+        	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($sucLocTables "" $columnsToBeSelectedImsi $columnsToBeSelected)
+        	union all
+        	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($errorLocTables "" $columnsToBeSelectedImsi $columnsToBeSelected)
+        	union all
+        	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($sucSmsTables "" $columnsToBeSelectedImsi $columnsToBeSelected)
+        	union all
+        	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($errorSmsTables "" $columnsToBeSelectedImsi $columnsToBeSelected)
+        ) as imsi_table_tmp group by #GET_COLUMNS_NO_COMMA_TRAILING($columnsToBeSelected)
+##
+    )as imsi_table 
+    left outer join #GET_OPERATOR_COUNTRY_TABLE("OP_COUNTRY_TABLE" $op_or_country)
+    on #GET_JOIN("imsi_table" "OP_COUNTRY_TABLE" $columnsToBeSelected)
+) as result_table
+GROUP BY $op_or_country
+	
+end

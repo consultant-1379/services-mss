@@ -1,0 +1,129 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:util="http://www.springframework.org/schema/util" xmlns:jee="http://www.springframework.org/schema/jee"
+
+
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans
+						http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+						http://www.springframework.org/schema/context
+						http://www.springframework.org/schema/context/spring-context-3.0.xsd
+						http://www.springframework.org/schema/util
+						http://www.springframework.org/schema/util/spring-util-3.0.xsd
+						http://www.springframework.org/schema/jee
+						http://www.springframework.org/schema/jee/spring-jee-3.0.xsd">
+
+	<bean id="sumTempInfoToTypeMappings"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventanalysis.summary.MssSummaryTemplateInfoToTypeMappings"
+		init-method="loadAllTemplateInfo" />
+
+    <bean id="templateUtils"
+          class="com.ericsson.eniq.events.server.integritytests.stubs.MssReplaceTablesWithTempTablesTemplateUtils"
+          init-method="applicationStartup" destroy-method="applicationShutdown" />
+
+	<bean id="queryConstructorUtils"
+		class="com.ericsson.eniq.events.server.queryconstructor.QueryConstructorUtils">
+		<property name="templateUtils" ref="templateUtils" />
+	</bean>
+		<bean id="techPackCXCMappingService" class="com.ericsson.eniq.events.server.services.impl.TechPackCXCMappingService"
+		init-method="readTechPackLicenseNumbersFromDB">
+		<property name="dataService" ref="dataServiceBean" />
+		<property name="templateUtils" ref="templateUtils" />
+		<property name="templateMappingEngine" ref="templateMappingEngine" />
+		<property name="techPackCXCMappingUtils" ref="techPackCXCMappingUtils" />
+	</bean>
+
+	<bean id="rmiEngineUtils"
+		class="com.ericsson.eniq.events.server.integritytests.stubs.RMIEngineUtilsForDataIntegrityTests" />
+
+
+	<bean id="queryConstructor"
+		class="com.ericsson.eniq.events.server.queryconstructor.QueryConstructor">
+		<property name="mssEventAnalysisQueryHelper" ref="mssEventAnalysisQueryHelper" />
+		<property name="mssSubscriberBIQueryHelper" ref="mssSubscriberBIQueryHelper" />
+		<property name="mssEventVolumeQueryHelper" ref="mssEventVolumeQueryHelper" />
+		<property name="mssRoamingAnalysisQueryHelper" ref="mssRoamingAnalysisQueryHelper" />
+	</bean>
+
+	<bean id="mssEventAnalysisQueryHelper"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventanalysis.MssEventAnalysisQueryHelper">
+		<property name="mssVoiceServiceSummaryQueryCreator" ref="mssVoiceServiceSummaryQueryCreator" />
+		<property name="mssEventAnalysisErrSucTotalQueryCreator" ref="mssEventAnalysisErrSucTotalQueryCreator" />
+		<property name="mssSmsAndLocationServiceSummaryQueryCreator"
+			ref="mssSmsAndLocationServiceSummaryQueryCreator" />
+	</bean>
+
+	<bean id="mssVoiceServiceSummaryQueryCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventanalysis.summary.MssVoiceServiceSummaryQueryCreator">
+		<property name="queryConstructorUtils" ref="queryConstructorUtils" />
+		<property name="sumTempInfoToTypeMappings" ref="sumTempInfoToTypeMappings" />
+	</bean>
+
+	<bean id="mssSmsAndLocationServiceSummaryQueryCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventanalysis.summary.MssSmsAndLocationServiceSummaryQueryCreator">
+		<property name="queryConstructorUtils" ref="queryConstructorUtils" />
+		<property name="sumTempInfoToTypeMappings" ref="sumTempInfoToTypeMappings" />
+	</bean>
+
+	<bean id="mssEventAnalysisErrSucTotalQueryCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventanalysis.errSucTotal.MssEventAnalysisErrSucTotalQueryCreator">
+		<property name="queryConstructorUtils" ref="queryConstructorUtils" />
+	</bean>
+
+	<bean id="mssSubscriberBIQueryHelper"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.subbi.MssSubscriberBIQueryHelper">
+		<property name="mssSubscriberBIVoiceSummaryQueryCreator" ref="mssSubscriberBIVoiceSummaryQueryCreator" />
+		<property name="mssSubscriberBISmsAndLocServiceSummaryQueryCreator"	ref="mssSubscriberBISmsAndLocServiceSummaryQueryCreator" />
+		<property name="mssEventAnalysisErrSucTotalQueryCreator" ref="mssEventAnalysisErrSucTotalQueryCreator" />
+	</bean>
+
+	<bean id="mssSubscriberBIVoiceSummaryQueryCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.subbi.summary.MssSubscriberBIVoiceSummaryQueryCreator">
+		<property name="queryConstructorUtils" ref="queryConstructorUtils" />
+	</bean>
+
+	<bean id="mssSubscriberBISmsAndLocServiceSummaryQueryCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.subbi.summary.MssSubscriberBISmsAndLocServiceSummaryQueryCreator">
+		<property name="queryConstructorUtils" ref="queryConstructorUtils" />
+	</bean>
+
+	<bean id="mssEventVolumeQueryHelper"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventvolume.MssEventVolumeQueryHelper">
+		<property name="mssEventVolumeQueryVoiceCreator" ref="mssEventVolumeQueryVoiceCreator" />
+		<property name="mssEventVolumeQueryLocServiceCreator" ref="mssEventVolumeQueryLocServiceCreator" />
+		<property name="mssEventVolumeQuerySMSCreator" ref="mssEventVolumeQuerySMSCreator" />
+		<property name="mssEventVolumeQueryImsubCreator" ref="mssEventVolumeQueryImsubCreator" />
+	</bean>
+
+	<bean id="mssEventVolumeQueryVoiceCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventvolume.MssEventVolumeQueryVoiceCreator">
+		<property name="templateUtils" ref="templateUtils" />
+	</bean>
+
+	<bean id="mssEventVolumeQueryLocServiceCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventvolume.MssEventVolumeQueryLocServiceCreator">
+		<property name="templateUtils" ref="templateUtils" />
+	</bean>
+
+	<bean id="mssEventVolumeQuerySMSCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventvolume.MssEventVolumeQuerySMSCreator">
+		<property name="templateUtils" ref="templateUtils" />
+	</bean>
+
+	<bean id="mssEventVolumeQueryImsubCreator"
+		class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventvolume.MssEventVolumeQueryImsubCreator">
+		<property name="templateUtils" ref="templateUtils" />
+	</bean>
+
+	<bean id="mssRoamingVoiceServiceSummaryQueryCreator" class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.roaming.summary.MssRoamingVoiceServiceSummaryQueryCreator"/>
+
+	<bean id="mssRoamingSmsAndLocationServiceSummaryQueryCreator" class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.roaming.summary.MssRoamingSmsAndLocationServiceSummaryQueryCreator"/>
+
+	<bean id="mssRoamingImsubSummaryQueryCreator" class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.roaming.summary.MssRoamingImsubSummaryQueryCreator"/>
+
+	<bean id="mssRoamingAnalysisQueryHelper" class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.roaming.MssRoamingAnalysisQueryHelper">
+		<property name="mssRoamingVoiceServiceSummaryQueryCreator" ref="mssRoamingVoiceServiceSummaryQueryCreator" />
+		<property name="mssRoamingSmsAndLocationServiceSummaryQueryCreator" ref="mssRoamingSmsAndLocationServiceSummaryQueryCreator" />
+		<property name="mssRoamingImsubSummaryQueryCreator" ref="mssRoamingImsubSummaryQueryCreator" />
+	</bean>
+</beans>

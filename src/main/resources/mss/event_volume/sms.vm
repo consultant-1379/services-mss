@@ -1,0 +1,13 @@
+begin
+
+select
+   dateformat(tmp_st, 'yyyy-mm-dd hh:mm:ss.S') as tmp_st,
+   sum(isnull(case when EVENT_ID = 4 then $ApplicationConstants.NO_OF_SUCCESSES_CALLS end, 0)) as MSORIGINATING_SMS_COUNT,
+   sum(isnull(case when EVENT_ID = 4 then $ApplicationConstants.NO_OF_BLOCKED_CALLS end, 0)) as MSORIGINATING_SMS_FAIL_COUNT,
+   sum(isnull(case when EVENT_ID = 5 then $ApplicationConstants.NO_OF_SUCCESSES_CALLS end, 0)) as MSTERMINATING_SMS_COUNT,
+   sum(isnull(case when EVENT_ID = 5 then $ApplicationConstants.NO_OF_BLOCKED_CALLS end, 0)) as MSTERMINATING_SMS_FAIL_COUNT
+from 
+   $data_table_subsql
+group by tmp_st order by tmp_st
+
+end

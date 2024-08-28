@@ -1,0 +1,21 @@
+begin
+
+select
+    dateformat(tmp_st, 'yyyy-mm-dd hh:mm:ss.S') as tmp_st,
+    $ApplicationConstants.IMPACTED_SUBSCRIBERS    
+from
+(select 
+  count(distinct(IMSI)) as $ApplicationConstants.IMPACTED_SUBSCRIBERS,
+  #GET_COLUMNS_NO_COMMA_TRAILING($commonColumns)
+  from 
+  (
+      select #GET_COLUMNS_NO_COMMA_TRAILING($filterColumns)
+      from 
+      #REPLACE_VIEW_WITH_TABLES_AND_CONDITION($tables "tmp" $filterColumns $groupCondition $nodeCondition $whereConditions $useExclusiveTac)
+  ) as alltmp full outer join #GET_CHART_TIMES($starttime $endtime $interval)
+  on #GET_DATETIME_RANGE_TS() 
+  group by #GET_COLUMNS_NO_COMMA_TRAILING($commonColumns) 
+) as imsub_table
+order by tmp_st
+
+end

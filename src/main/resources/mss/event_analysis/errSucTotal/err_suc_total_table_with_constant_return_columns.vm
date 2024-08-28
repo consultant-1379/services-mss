@@ -1,0 +1,121 @@
+#set($toplogyTables = ["DIM_E_SGEH_HIER321","DIM_Z_SGEH_HIER321"])
+#set($topologyColumns = ["HIERARCHY_3","HIERARCHY_1","VENDOR","HIER3_ID","HIER321_ID"])
+#set($topologyView = "topologyref")
+
+select
+	evntsrc.EVNTSRC_ID,
+	#if($joinOnCellAndController)
+		${topologyView}.HIER3_ID,
+		${topologyView}.HIER321_ID,
+	#else
+		0 as HIER3_ID,
+		0 as HIER321_ID,
+	#end
+	#if($csv == true)
+	    #GET_COLUMNS_BY_TABLE_MSS("rawview" $columnOrder1_1)
+	#else
+		#GET_COLUMNS_BY_TABLE("rawview" $columnOrder1_1)
+	#end
+
+	evntsrc.EVENT_SOURCE_NAME,
+	#if($isMssCallForwardReport) 
+		'' as EXTERNAL_PROTOCOL_NAME,
+	#else	
+		extprotocol.EXTERNAL_PROTOCOL_NAME,
+	#end 
+	
+	#GET_COLUMNS_BY_TABLE("rawview" $columnOrder1_2)
+	
+	#if($joinOnCellAndController)
+		${topologyView}.HIERARCHY_3,
+		${topologyView}.HIERARCHY_1,
+		
+	#else
+		'' as HIERARCHY_3,
+		'' as HIERARCHY_1,
+		
+	#end
+	#GET_COLUMNS_BY_TABLE("rawview" $columnOrder1_3)
+	#if($joinOnTac)
+		tacref.MANUFACTURER,
+		tacref.MARKETING_NAME,
+	#else
+		'' as MANUFACTURER,
+		'' as MARKETING_NAME,
+	#end
+	eventtyperef.EVENT_ID_DESC ,
+	#GET_COLUMNS_BY_TABLE("rawview" $columnOrder2)
+	#GET_COLUMNS_BY_TABLE("rawview" $columnOrder3_1)
+	
+	#if($isMssCallForwardReport) 
+		'' as EXTERNAL_CAUSE_DESC,
+	#else	
+		extcausecoderef.EXTERNAL_CAUSE_DESC,
+	#end 
+	
+	#GET_COLUMNS_BY_TABLE("rawview" $columnOrder3_2)
+	internalcausecoderef.INTERNAL_CAUSE_CODE_DESC,
+	#GET_COLUMNS_BY_TABLE("rawview" $columnOrder3_3)
+	faultcoderef.FAULT_CODE_DESC,
+	faultcoderef.ADVICE,
+	#GET_COLUMNS_BY_TABLE("rawview" $columnOrder3_4)
+	#if($joinOnCellAndController)
+		ratref.RAT_DESC,
+	#else
+		'' as RAT_DESC,
+	#end
+	
+	#if($joinOnCellAndController)
+		${topologyView}.VENDOR,
+	#else
+		'' as VENDOR,
+	#end
+	#GET_COLUMNS_BY_TABLE_NO_COMMA_TRAILING("rawview" $columnOrder4)
+from
+	#if($joinOnTac)
+		dc.DIM_E_SGEH_TAC tacref,
+	#end
+    dc.DIM_E_MSS_EVENTTYPE eventtyperef,
+    dc.DIM_E_MSS_FAULT_CODE faultcoderef,
+    dc.DIM_E_MSS_INTERNAL_CAUSE_CODE internalcausecoderef,
+	dc.DIM_E_MSS_EVNTSRC evntsrc,
+	#if(!$isMssCallForwardReport)
+    	dc.DIM_E_MSS_PROTOCOL_CODE extprotocol,
+    	dc.DIM_E_MSS_EXTERNAL_CAUSE_CODE extcausecoderef,
+	#end 
+	
+	#if($joinOnCellAndController)
+		dc.DIM_E_SGEH_RAT ratref,
+		#UNION_ALL_TABLES_WITH_FILTER_COLUMNS_CHECK($toplogyTables $topologyView $topologyColumns),
+	#end
+	(	
+		$rawTableQueryPart
+	)as rawview
+where
+	rawview.EVENT_ID = eventtyperef.EVENT_ID
+	#if($joinOnTac)
+		and
+		rawview.TAC *= tacref.TAC
+	#end	
+	and
+	rawview.INTERNAL_CAUSE_CODE = internalcausecoderef.INTERNAL_CAUSE_CODE
+	#if(!$isMssCallForwardReport)
+    	and
+    	rawview.EXTERNAL_PROTOCOL_ID = extprotocol.EXTERNAL_PROTOCOL_ID
+    	and
+    	rawview.EXTERNAL_CAUSE_CODE = extcausecoderef.EXTERNAL_CAUSE_CODE
+    	and
+    	rawview.EXTERNAL_PROTOCOL_ID = extcausecoderef.PROTOCOL_ID
+	#end
+	and
+	rawview.FAULT_CODE = faultcoderef.FAULT_CODE
+	and
+	rawview.EVNTSRC_ID = evntsrc.EVNTSRC_ID
+	
+
+	#if($joinOnCellAndController)
+		and
+		rawview.RAT = ratref.RAT
+		and
+		rawview.HIER321_ID = topologyref.HIER321_ID
+	#end

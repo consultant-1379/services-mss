@@ -1,0 +1,80 @@
+#set($selectedColumn = "TAC")
+#if($timerange == "TR_1" || $timerange == "TR_2" )
+  #set($shouldUseAggrTables = false)
+#else
+  #set($shouldUseAggrTables = true)
+#end
+
+#macro (SELECT_DROP_OR_BLOCK_RANKING_TAC $shouldBeAggr $techPackTables $columnType)
+	select  
+		$columnType,
+		#if($shouldBeAggr)
+		  SUM(NO_OF_ERRORS) as FAILURES
+	  #else
+	    count(*) as FAILURES
+	  #end
+    from 
+        #if($shouldBeAggr)
+          #if($errorType == $ApplicationConstants.DROPPED_CALLS)
+            #REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL" [$columnType, "NO_OF_ERRORS"] [$columnType])
+          #elseif($errorType == $ApplicationConstants.BLOCKED_CALLS)
+            #REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR" [$columnType, "NO_OF_ERRORS"] [$columnType])
+          #end
+        #else
+          #if($errorType == $ApplicationConstants.DROPPED_CALLS)
+            #REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" [$columnType, "IMSI"] [$columnType])
+          #elseif($errorType == $ApplicationConstants.BLOCKED_CALLS)
+            #REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" [$columnType, "IMSI"] [$columnType])
+          #end
+        #end
+    group by 
+        $columnType
+#end
+
+#macro (SELECT_SUC_RANKING_TAC $shouldBeAggr $techPackTables $columnType)
+	select 
+            $columnType,
+            #if($shouldBeAggr)
+		          SUM(NO_OF_SUCCESSES) as SUCCESSES
+	          #else
+	            count(*) as SUCCESSES
+	          #end
+        from 
+        #if($shouldBeAggr)
+				  #REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getSucTables() "EVENT_E_MSS_VOICE_CDR_SUC" [$columnType, "NO_OF_SUCCESSES"] [$columnType])
+			  #else
+				  #REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getSucTables() "EVENT_E_MSS_VOICE_CDR_SUC_RAW" [$columnType, "IMSI"] [$columnType])
+        #end
+        group by 
+            $columnType
+#end
+
+begin
+
+select 
+   #if($count > 0)
+      top $count
+   #end 
+   rank() over (order by result_data.FAILURES desc) as RANK,
+   DIM_E_SGEH_TAC.MANUFACTURER as Maunfacturer,
+   DIM_E_SGEH_TAC.MARKETING_NAME as Model,
+   result_data.TAC as TAC,
+   result_data.FAILURES as FAILURES,
+   result_data.SUCCESSES as SUCCESSES
+from 
+(
+  select isnull(err_call.TAC, suc_call.TAC) as TAC, isnull(FAILURES, 0) as FAILURES, isnull(SUCCESSES, 0) as SUCCESSES from
+  (#SELECT_DROP_OR_BLOCK_RANKING_TAC($shouldUseAggrTables $techPackTables $selectedColumn))as err_call 
+  full outer join
+  (#SELECT_SUC_RANKING_TAC($shouldUseAggrTables $techPackTables $selectedColumn))  as suc_call
+  on err_call.$selectedColumn = suc_call.$selectedColumn 
+) 
+as result_data 
+
+left outer join DIM_E_SGEH_TAC
+
+on result_data.TAC = DIM_E_SGEH_TAC.TAC
+
+order by RANK
+
+end

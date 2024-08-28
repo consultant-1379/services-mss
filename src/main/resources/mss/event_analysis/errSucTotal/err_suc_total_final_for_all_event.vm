@@ -1,0 +1,16 @@
+select
+	#if($count > 0)
+		top $count
+	#end
+	*
+from(
+	$allMsOriginatingEventsTable
+	union all
+	$allMsTerminatingEventsTable
+	union all
+	$allCallForwardingEventsTable
+	union all
+	$allRoamingCallEventsTable
+	)as total
+order by
+	EVENT_TIME desc

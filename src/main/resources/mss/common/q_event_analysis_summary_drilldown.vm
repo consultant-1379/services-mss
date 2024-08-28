@@ -1,0 +1,194 @@
+## Get MSS KPI Ratio 
+## key : one of {SUC, ERR, TOTAL}
+## echimma 12/05/2011
+#DEFINE_CONSTANTS()
+#set($event_ID=$ApplicationConstants.EVENT_ID_SQL_PARAM)
+
+#if(${type}==$ApplicationConstants.TYPE_BSC)
+	#if(${drilltype}==$ApplicationConstants.TYPE_BSC)
+    	#set($selectColumn="HIER321_ID")
+    	#set($groupByColumn="HIER321_ID")
+    	#set($nodeName="AccessArea")
+    	#set($topologyName="HIERARCHY_1")
+    	#set($condictionValues=["$ApplicationConstants.CONTROLLER_SQL_ID"])
+    	#set($topologyColumns=["Vendor", "HIERARCHY_1", "HIER3_ID", "HIER321_ID"])
+    	#set($$topologyTableNames=["DIM_E_SGEH_HIER321", "DIM_Z_SGEH_HIER321"])
+		#set($topologyCondictionValues=["$ApplicationConstants.CONTROLLER_SQL_ID"])
+	#end
+#elseif(${type}==$ApplicationConstants.TYPE_MSC)
+	#if(${drilltype}==$ApplicationConstants.TYPE_MSC)
+    	#set($selectColumn="HIER3_ID")
+    	#set($groupByColumn="HIER3_ID")
+    	#set($nodeName="Controller")
+    	#set($topologyName="HIERARCHY_3")
+    	#set($condictionValues=["$ApplicationConstants.EVENT_SOURCE_SQL_ID"])
+    	#set($topologyColumns=["VENDOR", "HIERARCHY_3", "HIER3_ID"])
+    	#set($$topologyTableNames=["DIM_E_SGEH_HIER321", "DIM_Z_SGEH_HIER321"])
+		#set($topologyCondictionValues=[])
+	#elseif(${drilltype}==$ApplicationConstants.TYPE_BSC)
+		#set($selectColumn="HIER321_ID")
+    	#set($groupByColumn="HIER321_ID")
+    	#set($nodeName="AccessArea")
+    	#set($topologyName="HIERARCHY_1")
+    	#set($condictionValues=["$ApplicationConstants.EVENT_SOURCE_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID"])
+    	#set($topologyColumns=["VENDOR", "HIERARCHY_1", "HIER3_ID", "HIER321_ID"])
+    	#set($topologyTableNames=["DIM_E_SGEH_HIER321", "DIM_Z_SGEH_HIER321"])
+		#set($topologyCondictionValues=["$ApplicationConstants.CONTROLLER_SQL_ID"])
+	#end
+#end
+
+#if($eventID=="6")
+##Location Service
+	#set($eventType="LOC")
+#elseif($eventID=="4"||$eventID=="5")
+	#set($eventType="SMS")
+#else
+	#set($eventType="VOICE")
+##Voice Service
+#end
+
+#macro (GET_RAW_TABLE_WITH_TAC_EXCLUSION $rawtables $rawview $sumvalue $selectColumn $groupByColumn $condictionValues)
+	select
+		$selectColumn,
+		count(*) as $sumvalue
+    from 
+        #REPLACE_RAW_VIEW_WITH_RAW_TABLES_WITH_TAC_EXCLUSION($rawtables $rawview)
+	where
+		EVENT_ID = :$event_ID and
+		#GET_COLUMNS_WHERE($condictionValues)
+    group by 
+        $groupByColumn
+#end
+
+#macro (GET_FAILURE_RAW_TABLE_WITH_TAC_EXCLUSION $rawtables $rawview $selectColumn $condictionValues)
+	select 
+		$selectColumn,
+		IMSI
+    from 
+        #REPLACE_RAW_VIEW_WITH_RAW_TABLES_WITH_TAC_EXCLUSION($rawtables $rawview)
+	where
+		EVENT_ID = :$event_ID and
+		#GET_COLUMNS_WHERE($condictionValues)
+#end
+
+
+#macro (SELECT_TABLES_BY_COLUMNS_AND_TABLENAME $columns $tableNames $condictionValues)
+	#foreach($tableName in $tableNames)
+    	(
+    		select
+				#GET_COLUMNS_NO_COMMA_TRAILING($columns)
+    		from
+    			$tableName
+			#if($topologyCondictionValues.size()>0)
+			where
+				#GET_COLUMNS_WHERE($condictionValues)
+			#end
+			group by
+				#GET_COLUMNS_NO_COMMA_TRAILING($columns)				
+    	)
+    	 #if ( $velocityCount <= 1)
+    		union all
+    	#end
+	#end
+#end
+
+#macro (SELECT_RETURN_COLUMNS $columns)
+	#foreach ($column in $columns)
+        #if ( $velocityCount <= 1)
+        :$column as $column
+        #else
+        ,:$column as $column
+        #end
+    #end
+#end
+	
+begin
+
+select
+#if($count > 0)
+	top $count
+#end
+	:$event_ID as $event_ID,
+    #SELECT_RETURN_COLUMNS($condictionValues),
+	$selectColumn,
+    VENDOR,
+    $nodeName,
+	EventType,
+	NO_OF_ERRORS,
+	NO_OF_SUCCESSES,
+	Total,
+	#CALCULATE_SUCCESS_RATIO(),
+	ImpactedSubScribers
+from
+	(
+    select
+        eref.Vendor as VENDOR,
+		eref.$topologyName as $nodeName,
+		data_table.$selectColumn as $selectColumn,
+        etref.EVENT_ID_DESC as EventType,
+        data_table.Failure as NO_OF_ERRORS,
+        data_table.Success as NO_OF_SUCCESSES,
+        data_table.Success+data_table.Failure as Total,	
+        data_table.ImpactedSubScribers as ImpactedSubScribers
+    from
+    	(
+    		select
+				isnull(suc_table.$selectColumn,failure_table.$selectColumn) as $selectColumn,
+    			isnull(suc_table.suc_num,0) as Success,
+    			isnull(failure_table.failure_num,0) as Failure,
+                isnull(failure_table.ImpactedSubScribers,0) as ImpactedSubScribers
+    		from
+    			(
+					#if($eventType=="VOICE")
+						#GET_RAW_TABLE_WITH_TAC_EXCLUSION($techPackTables.getSucTables() "suc_tmp" "suc_num" $selectColumn $groupByColumn $condictionValues)
+					#elseif($eventType=="LOC")
+						#GET_RAW_TABLE_WITH_TAC_EXCLUSION($techPackTables.getSucTables($ApplicationConstants.KEY_TYPE_LOC_SERVICE_SUC) "suc_tmp" "suc_num" $selectColumn $groupByColumn $condictionValues)
+					#elseif($eventType=="SMS")
+						#GET_RAW_TABLE_WITH_TAC_EXCLUSION($techPackTables.getSucTables($ApplicationConstants.KEY_TYPE_SMS_SUC) "suc_tmp" "suc_num" $selectColumn $groupByColumn $condictionValues)
+					#end
+    			) as suc_table
+    			full outer join
+    			(
+    				select
+                        $selectColumn,
+                        count(*) as failure_num,
+                        count(distinct(IMSI)) as ImpactedSubScribers
+                    from
+    					(
+							#if($eventType=="VOICE")
+    						(
+								#GET_FAILURE_RAW_TABLE_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "err_tmp" $selectColumn $condictionValues)
+                            )
+                            union all
+                            (
+								#GET_FAILURE_RAW_TABLE_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "drop_tmp" $selectColumn $condictionValues)
+                            )
+							#elseif($eventType=="LOC")
+								#GET_FAILURE_RAW_TABLE_WITH_TAC_EXCLUSION($techPackTables.getErrTables($ApplicationConstants.KEY_TYPE_LOC_SERVICE_ERR) "drop_tmp" $selectColumn $condictionValues)
+							#elseif($eventType=="SMS")
+								#GET_FAILURE_RAW_TABLE_WITH_TAC_EXCLUSION($techPackTables.getErrTables($ApplicationConstants.KEY_TYPE_SMS_ERR) "drop_tmp" $selectColumn $condictionValues)
+							#end
+                        ) as tmp
+                        group by
+							$groupByColumn
+                ) as failure_table
+    		on
+				suc_table.$groupByColumn = failure_table.$groupByColumn
+    	) as data_table,
+		(
+			#SELECT_TABLES_BY_COLUMNS_AND_TABLENAME($topologyColumns $topologyTableNames $topologyCondictionValues)
+		) as eref,
+    	(
+    		select
+    			EVENT_ID_DESC
+    		from
+    			DIM_E_MSS_EVENTTYPE
+    		where
+    			EVENT_ID = :$event_ID
+    	)as etref
+    	where
+			data_table.$selectColumn = eref.$selectColumn
+	) as result_data
+	order by
+		SuccessRatio
+end

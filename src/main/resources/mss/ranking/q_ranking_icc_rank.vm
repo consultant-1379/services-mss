@@ -1,0 +1,89 @@
+##Template for Mss Internal Cause Code Ranking using raw table.
+##
+## echimma
+##parameters:
+##	techPackTables : the raw tables that get from the timerange_tables.
+#macro (SELECT_ERR $techPackTables $columnType)
+select  
+    $columnType,
+    count(*) as ERR_CALL
+from 
+    #REPLACE_RAW_VIEW_WITH_RAW_TABLES_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "err_raw")
+where
+	$columnType is not NULL
+group by 
+    $columnType
+#end
+
+#macro (SELECT_DROP $techPackTables $columnType)
+select  
+	$columnType,
+	count(*) as DROP_CALL
+from 
+    #REPLACE_RAW_VIEW_WITH_RAW_TABLES_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "drop_raw")
+where
+	$columnType is not NULL
+group by 
+    $columnType
+#end
+
+#macro (SELECT_SUC $techPackTables $columnType)
+select 
+    $columnType,
+    count(*) as SUCCESS 
+from 
+	#REPLACE_RAW_VIEW_WITH_RAW_TABLES_WITH_TAC_EXCLUSION($techPackTables.getSucTables() "suc_raw")
+where
+	$columnType is not NULL
+group by 
+    $columnType
+#end
+
+#macro (SELECT_DROP_AND_ERR $techPackTables $columnType)
+select 
+    isnull(ERR_TABLE.$columnType,DROP_TABLE.$columnType) as $columnType,
+    isnull(ERR_TABLE.ERR_CALL,0) + isnull(DROP_TABLE.DROP_CALL,0) as FAILURE
+from
+    (
+		#SELECT_ERR($techPackTables $columnType)
+    ) as ERR_TABLE
+    full outer join
+    (
+		#SELECT_DROP($techPackTables $columnType)
+    )as DROP_TABLE
+on(ERR_TABLE.${columnType}=DROP_TABLE.${columnType})
+#end
+
+
+#DEFINE_CONSTANTS()
+begin
+
+select 
+#if($count > 0)
+	top $count
+#end
+    rank() over (order by RESULT_DATA.FAILURE desc) as RANK,
+	CAUSE_CODE_DESC.INTERNAL_CAUSE_CODE_DESC as INTERNAL_CAUSE_CODE_DESC,
+	RESULT_DATA.INTERNAL_CAUSE_CODE as INTERNAL_CAUSE_CODE_ID,
+    RESULT_DATA.FAILURE as FAILURE,
+    RESULT_DATA.SUCCESS as SUCCESS
+from
+    (
+    select
+		isnull(CDR_SUCCESS.INTERNAL_CAUSE_CODE,CDR_FAILURE.INTERNAL_CAUSE_CODE) as INTERNAL_CAUSE_CODE,
+		isnull(CDR_FAILURE.FAILURE,0) as FAILURE,
+        isnull(CDR_SUCCESS.SUCCESS,0) as SUCCESS
+    from
+        (
+			#SELECT_SUC($techPackTables "INTERNAL_CAUSE_CODE")
+        ) as CDR_SUCCESS
+        full outer join
+        (
+			#SELECT_DROP_AND_ERR($techPackTables "INTERNAL_CAUSE_CODE")
+        ) as CDR_FAILURE
+		on(CDR_SUCCESS.INTERNAL_CAUSE_CODE=CDR_FAILURE.INTERNAL_CAUSE_CODE)
+    )as RESULT_DATA
+    left join
+        DIM_E_MSS_INTERNAL_CAUSE_CODE as CAUSE_CODE_DESC
+on CAUSE_CODE_DESC.INTERNAL_CAUSE_CODE=RESULT_DATA.INTERNAL_CAUSE_CODE
+end

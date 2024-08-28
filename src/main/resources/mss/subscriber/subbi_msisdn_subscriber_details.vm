@@ -1,0 +1,72 @@
+#set($toplogyTables = ["DIM_E_SGEH_HIER321","DIM_Z_SGEH_HIER321"])
+#set($topologyColumns = ["HIERARCHY_3","HIERARCHY_1","VENDOR","HIER3_ID","HIER321_ID"])
+#set($topologyView = "topologyref")
+
+#macro(MSS_INSERT_IMSI_VALUE )
+		(SELECT LIST(IMSI) AS IMSI FROM dc.DIM_E_IMSI_MSISDN  where MSISDN = :MSISDN)
+#end
+
+## Temporary table to hold all topology data
+select 
+	#GET_COLUMNS_NO_COMMA_TRAILING($topologyColumns) 
+	into #TOPOLOGY_DATA_TABLE
+from
+	#UNION_ALL_TABLES_WITH_FILTER_COLUMNS_CHECK($toplogyTables $topologyView $topologyColumns)
+
+select
+	*
+	into #RAW_VIEW
+from
+	($rawTableQueryPart) as tableName
+	
+select
+	HIERARCHY_1,
+	HIERARCHY_3,
+	VENDOR,
+	ratref.RAT_DESC
+	into #NETWORKDATA
+from
+	#RAW_VIEW,
+	#TOPOLOGY_DATA_TABLE,
+	dc.DIM_E_SGEH_RAT ratref
+where
+		#TOPOLOGY_DATA_TABLE.HIER321_ID = #RAW_VIEW.HIER321_ID
+		and ratref.RAT = #RAW_VIEW.RAT
+	
+select 
+	TOP 1
+	(case when (GROUP_NAME = 'VIP') then 1 else 0 end) as VIP_Status,
+	#MSS_INSERT_IMSI_VALUE() AS IMSI,
+	mccmncref.COUNTRY as Home_Country, 
+	mccmncref.OPERATOR as Mobile_Network_Operator, 
+	CASE ROAMING
+		WHEN 1 THEN 'Roaming'
+		ELSE 'Home'
+		END as Roaming_Status,
+	CASE EVENT_ID
+        WHEN 2 THEN ( '' || '-' || '' + '-' || '' || '-' || '')
+		WHEN 3 THEN ('' || '-' || '' + '-' || '' || '-' || '')
+		ELSE ( HIERARCHY_1 || '-' || HIERARCHY_3 + '-' || #NETWORKDATA.VENDOR || '-' || #NETWORKDATA.RAT_DESC)
+		END as Last_Cell_Location,
+	evntsrc.EVENT_SOURCE_NAME as Last_Observed_MSC, 
+	(select MIN(DATETIME_ID) from
+	#RAW_VIEW)
+	as First_Observed,
+	DATETIME_ID as Last_Observed
+from 
+	#RAW_VIEW,
+	dc.GROUP_TYPE_E_IMSI imsigroup,
+    dc.DIM_E_SGEH_MCCMNC mccmncref,
+	dc.DIM_E_MSS_EVNTSRC evntsrc,
+	#NETWORKDATA
+where
+    IMSI_MCC = mccmncref.MCC 
+    and IMSI_MNC = mccmncref.MNC 
+	and #RAW_VIEW.EVNTSRC_ID = evntsrc.EVNTSRC_ID
+    and #RAW_VIEW.DATETIME_ID =( 
+        select max(DATETIME_ID) from 
+		#RAW_VIEW)
+		
+drop table #TOPOLOGY_DATA_TABLE
+drop table #NETWORKDATA
+drop table #RAW_VIEW

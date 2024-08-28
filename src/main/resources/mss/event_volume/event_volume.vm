@@ -1,0 +1,56 @@
+#macro (SUM_ALL_COLUMNS $columns $sumColumnAlias)
+    (
+    #foreach ($column in $columns)
+        $column
+        #if($velocityCount < $columns.size())
+            +
+        #end
+    #end
+    ) as $sumColumnAlias
+#end
+
+begin
+
+select 
+   MSOriginating_Complete,
+   MSOriginating_Blocked,
+   MSOriginating_Dropped,
+   MSOriginating_Emergency_Complete,
+   MSOriginating_Emergency_Blocked,
+   MSOriginating_Emergency_Dropped,
+   MSTerminating_Complete,
+   MSTerminating_Blocked,
+   MSTerminating_Dropped,
+   MSCallForwarding_Complete,
+   MSCallForwarding_Blocked,
+   MSCallForwarding_Dropped,
+   MSRoamingCall_Complete,
+   MSRoamingCall_Blocked,
+   MSRoamingCall_Dropped,
+   Location_Requests,
+   Unsuccessful_Location_Requests,
+   #SUM_ALL_COLUMNS(["MSOriginating_Complete", "MSOriginating_Blocked", "MSOriginating_Dropped", "MSOriginating_Emergency_Complete", "MSOriginating_Emergency_Blocked","MSOriginating_Emergency_Dropped", "MSTerminating_Complete", "MSTerminating_Blocked", "MSTerminating_Dropped", "MSCallForwarding_Complete", "MSCallForwarding_Blocked", "MSCallForwarding_Dropped","MSRoamingCall_Complete", "MSRoamingCall_Blocked", "MSRoamingCall_Dropped", "Location_Requests", "Unsuccessful_Location_Requests"] "SumCount"),
+   #if($type != "NO_TYPE")
+     impacted_subscriber,
+   #end
+   dateformat(isnull(loc_service_imsub_table.tmp_st, voice_table.tmp_st), 'yyyy-mm-dd hh:mm:ss.S') as tmp_st
+from 
+(
+select 
+  Location_Requests,
+  Unsuccessful_Location_Requests,
+  impacted_subscriber,
+  isnull(loc_service_table.tmp_st, imsiView.tmp_st) as tmp_st
+  from 
+$loc_service_table_subsql full outer join $imsub_table_subsql
+on loc_service_table.tmp_st = imsiView.tmp_st
+) as loc_service_imsub_table 
+
+full outer join $voice_table_subsql
+
+on loc_service_imsub_table.tmp_st = voice_table.tmp_st
+
+order by tmp_st
+
+end
+

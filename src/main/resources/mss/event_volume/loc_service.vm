@@ -1,0 +1,11 @@
+begin
+
+select
+   dateformat(tmp_st, 'yyyy-mm-dd hh:mm:ss.S') as tmp_st,
+   sum(isnull(case when EVENT_ID = 6 then $ApplicationConstants.NO_OF_SUCCESSES_CALLS end, 0)) as Location_Requests,
+   sum(isnull(case when EVENT_ID = 6 then $ApplicationConstants.NO_OF_BLOCKED_CALLS end, 0)) as Unsuccessful_Location_Requests
+from 
+   $data_table_subsql
+group by tmp_st order by tmp_st
+
+end

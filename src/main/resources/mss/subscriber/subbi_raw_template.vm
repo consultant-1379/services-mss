@@ -1,0 +1,14 @@
+(
+	select
+		#GET_COLUMNS($commonColumns)
+		$rawAggColumn
+	from
+		#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS($tables "tmp" $filterColumns $extraTable $useTACExclusion)
+	where
+		#GET_COLUMNS_WHERE_BY_TABLE_EXTRA_TABLE_EXTRA_COLUMN("tmp" $joinColumns $extraTable $extraJoin)
+	group by
+	#GET_COLUMNS_NO_COMMA_TRAILING($commonColumns)
+) as $tableAlias(
+	#GET_COLUMNS($commonColumns)
+	$rawAggColumnAlias
+	)

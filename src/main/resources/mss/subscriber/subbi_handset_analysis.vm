@@ -1,0 +1,41 @@
+##Define some constants that are used by the macros
+#DEFINE_CONSTANTS()
+
+select
+	#if($count > 0)
+		top $count
+	#end
+	$type,
+	evntDespView.EVENT_ID,
+	tacView.MANUFACTURER as Manufacturer,
+	tacView.MARKETING_NAME as Model,
+	tacView.TAC,
+	tacView.BAND as Device_Capability,
+	IMEISV,
+	evntDespView.EVENT_ID_DESC,
+	sum(NO_OF_ERRORS) as NO_OF_ERRORS,
+	sum(NO_OF_SUCCESSES) as NO_OF_SUCCESSES,
+	NO_OF_SUCCESSES + NO_OF_ERRORS as TOTAL,
+	min(FIRST_SEEN) as FIRST_SEEN,
+	max(LAST_SEEN) as LAST_SEEN
+from
+	(
+    $allTablesQueryPart
+	)as summaryView,
+	dc.DIM_E_SGEH_TAC tacView,
+	dc.DIM_E_MSS_EVENTTYPE evntDespView
+where
+	summaryView.TAC=tacView.TAC
+    and
+	summaryView.EVENT_ID=evntDespView.EVENT_ID
+group by
+	$type,
+	evntDespView.EVENT_ID,
+	tacView.TAC,
+	IMEISV,
+	tacView.MANUFACTURER,
+	tacView.MARKETING_NAME ,
+	tacView.BAND,
+	evntDespView.EVENT_ID_DESC
+order by
+   FIRST_SEEN

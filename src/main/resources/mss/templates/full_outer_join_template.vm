@@ -1,0 +1,8 @@
+(
+  select 
+    #CONVERT_TO_IS_NULL_FOR_TWO_TABLES($leftTable $rightTable $commonColumns)
+    #IF_NULL_ASSIGN_ZERO_NO_COMMA_TRAILING($diffColumns)
+    from $leftTableSubsql 
+    full outer join $rightTableSubsql
+    on #GET_JOIN($leftTable $rightTable $commonColumns)
+) as $tableAlias (#GET_COLUMNS($commonColumns) #GET_COLUMNS_NO_COMMA_TRAILING($diffColumns))

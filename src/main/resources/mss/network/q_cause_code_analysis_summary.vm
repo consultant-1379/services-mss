@@ -1,0 +1,207 @@
+##=============================================================================
+##
+## Cause code analysis: detailed cause code/sub cause code data
+## ------------------------------------------------------------
+##
+## List sub cause code detail for cause code including description & subscriber
+##
+## type : one of {MSC, BSC, CELL}
+##
+##
+##=============================================================================
+
+#DEFINE_CONSTANTS()
+
+#if(${type}==$ApplicationConstants.TYPE_MSC)
+    #set($columns=[$ApplicationConstants.EVENT_SOURCE_SQL_ID])
+	#set($id="EVNTSRC_ID")
+	#set($name="EVENT_SOURCE_NAME")
+#elseif(${type}==$TYPE_BSC)
+    #set($columns=[$ApplicationConstants.CONTROLLER_SQL_ID])
+	#set($id="HIER3_ID")
+	#set($name="HIERARCHY_3")
+#elseif(${type}==$TYPE_CELL)
+    #set($columns=[$ApplicationConstants.CELL_SQL_ID])
+	#set($id="HIER321_ID")
+	#set($name="HIERARCHY_1")
+#end
+
+#if($useAggregationTables)
+	#set($occurrences="sum(NO_OF_ERRORS) as OCCURRENCES")
+	#set($tables=$techPackAggViews)	
+#else
+	#set($occurrences="count(*) as OCCURRENCES")
+	#set($tables=$techPackTables)	
+#end
+
+begin
+
+select 
+#if($count > 0)
+	top $count
+#end
+        RESULT_DATA.$id as $id, 
+        DIM.$name as $name, 
+        RESULT_DATA.INTERNAL_CAUSE_CODE as INTERNAL_CAUSE_CODE_ID, 
+        CAUSE_CODE.INTERNAL_CAUSE_CODE_DESC as INTERNAL_CAUSE_CODE, 
+        RESULT_DATA.FAULT_CODE as FAULT_CODE_ID, 
+        FCODE.FAULT_CODE_DESC as FAULT_CODE, 
+        FCODE.ADVICE as RECOMENDED_ACTION, 
+        RESULT_DATA.OCCURRENCES,  
+        RESULT_DATA.IMPACTED_SUBSCRIBERS 
+from(
+    select 
+        isnull(ERROR_VIEW.$id, IMPACTED_SUBSCRIBER.$id) as $id, 
+        isnull(ERROR_VIEW.INTERNAL_CAUSE_CODE, IMPACTED_SUBSCRIBER.INTERNAL_CAUSE_CODE) as INTERNAL_CAUSE_CODE, 
+        isnull(ERROR_VIEW.FAULT_CODE, IMPACTED_SUBSCRIBER.FAULT_CODE) as FAULT_CODE, 
+        isnull(ERROR_VIEW.OCCURRENCES,0) as OCCURRENCES, 
+        isnull(IMPACTED_SUBSCRIBER.IMPACTED_SUBSCRIBERS,0) as IMPACTED_SUBSCRIBERS 
+    from
+    (
+        select 
+            isnull(error_blocked.$id, error_dropped.$id) as $id,
+            isnull(error_blocked.INTERNAL_CAUSE_CODE, error_dropped.INTERNAL_CAUSE_CODE) as INTERNAL_CAUSE_CODE,
+            isnull(error_blocked.FAULT_CODE, error_dropped.FAULT_CODE) as FAULT_CODE, 
+            isnull(error_blocked.OCCURRENCES,0) + isnull(error_dropped.OCCURRENCES,0) as OCCURRENCES
+        from
+            (
+                select
+                    $id,
+                    INTERNAL_CAUSE_CODE,
+                    FAULT_CODE, 
+					$occurrences
+                from 
+					#if($useAggregationTables)
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS($tables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" $columns)
+					#else
+    					#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_WITH_TAC_EXCLUSION($tables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" $columns)
+					#end
+                group by 
+                        $id, INTERNAL_CAUSE_CODE, FAULT_CODE
+            ) as error_blocked
+            full outer join
+            (
+                select
+                    $id,
+                    INTERNAL_CAUSE_CODE,
+                    FAULT_CODE, 
+					$occurrences
+                from 
+					#if($useAggregationTables)
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS($tables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" $columns)
+					#else
+    					#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_WITH_TAC_EXCLUSION($tables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" $columns)
+					#end
+                group by 
+                        $id, INTERNAL_CAUSE_CODE, FAULT_CODE
+            ) as error_dropped
+            on
+            (
+                error_blocked.$id = error_dropped.$id and 
+                error_blocked.INTERNAL_CAUSE_CODE = error_dropped.INTERNAL_CAUSE_CODE and 
+                error_blocked.FAULT_CODE = error_dropped.FAULT_CODE
+            )
+    )as ERROR_VIEW
+
+    full outer join
+    
+    (
+        select 
+            $id,
+            INTERNAL_CAUSE_CODE,
+            FAULT_CODE, 
+            count(distinct(imsi)) as IMPACTED_SUBSCRIBERS
+        from
+            (
+                select
+                    $id,
+                    INTERNAL_CAUSE_CODE,
+                    FAULT_CODE, 
+                    imsi
+                from 
+					#if($useAggregationTables)
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS($techPackTables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" $columns)
+					#else
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" $columns)
+					#end
+
+                union all
+
+                select
+                    $id,
+                    INTERNAL_CAUSE_CODE,
+                    FAULT_CODE, 
+                    imsi
+                from 
+					#if($useAggregationTables)
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS($techPackTables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" $columns)
+					#else
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" $columns)
+					#end
+			) as temp
+        group by
+            $id, INTERNAL_CAUSE_CODE, FAULT_CODE    
+    )as IMPACTED_SUBSCRIBER
+
+    on(
+        ERROR_VIEW.$id = IMPACTED_SUBSCRIBER.$id 
+        AND isnull(ERROR_VIEW.INTERNAL_CAUSE_CODE, -1) = isnull(IMPACTED_SUBSCRIBER.INTERNAL_CAUSE_CODE, -1)
+        AND isnull(ERROR_VIEW.FAULT_CODE, -1) = isnull(IMPACTED_SUBSCRIBER.FAULT_CODE, -1)
+    )
+
+) as RESULT_DATA 
+left outer join
+    dc.DIM_E_MSS_FAULT_CODE as FCODE
+on
+    RESULT_DATA.FAULT_CODE = FCODE.FAULT_CODE
+left outer join
+    dc.DIM_E_MSS_INTERNAL_CAUSE_CODE as CAUSE_CODE
+on
+    RESULT_DATA.INTERNAL_CAUSE_CODE = CAUSE_CODE.INTERNAL_CAUSE_CODE
+#if(${type}==$ApplicationConstants.TYPE_MSC)
+left outer join
+    dc.DIM_E_MSS_EVNTSRC as DIM
+on
+    RESULT_DATA.EVNTSRC_ID = DIM.EVNTSRC_ID
+#elseif(${type}==$TYPE_BSC)
+left outer join
+(
+	select
+		         VENDOR
+                ,HIERARCHY_3
+                ,HIER3_ID
+				from 
+				dc.DIM_E_SGEH_HIER321 
+	group by
+		         VENDOR
+                ,HIERARCHY_3
+                ,HIER3_ID
+	union all
+	select
+		         VENDOR
+                ,HIERARCHY_3
+                ,HIER3_ID
+	from 
+				dc.DIM_Z_SGEH_HIER321 
+	group by
+		        VENDOR
+                ,HIERARCHY_3
+                ,HIER3_ID
+)as DIM
+on
+    DIM.HIER3_ID = RESULT_DATA.HIER3_ID
+#elseif(${type}==$TYPE_CELL)
+left outer join
+(
+    select HIER321_ID, HIERARCHY_1 
+    from dc.DIM_E_SGEH_HIER321
+    union all
+    select HIER321_ID, HIERARCHY_1
+    from dc.DIM_Z_SGEH_HIER321
+)as DIM
+on
+    DIM.HIER321_ID = RESULT_DATA.HIER321_ID
+#end
+order by
+    INTERNAL_CAUSE_CODE_ID, FAULT_CODE_ID
+end

@@ -1,0 +1,38 @@
+#DEFINE_CONSTANTS()
+
+#macro(MSS_CCAS_QUERY $errTable)
+(
+select	
+	ccref.INTERNAL_CAUSE_CODE,
+	ccref.INTERNAL_CAUSE_CODE_DESC
+from
+	dc.${errTable} errRef,
+	dc.DIM_E_MSS_INTERNAL_CAUSE_CODE as ccref
+	#GROUP_TABLE_INFO()
+where
+	#GET_DATETIME_RANGE()
+	#MSS_GROUP_OR_SINGLE_INFO()
+	#if(!$useAggregationTables)
+		and #GET_TAC_EXCLUSION()
+	#end
+	and errRef.INTERNAL_CAUSE_CODE = ccref.INTERNAL_CAUSE_CODE
+)
+#end
+
+select
+	err.INTERNAL_CAUSE_CODE as INTERNAL_CAUSE_CODE,
+    err.INTERNAL_CAUSE_CODE_DESC as INTERNAL_CAUSE_CODE_DESC
+from 
+(
+	#foreach ($errtable in $rawMssTables)
+		#MSS_CCAS_QUERY($errtable)
+		#if($velocityCount < $rawMssTables.size())
+			union all
+		#end
+	#end
+) as err (INTERNAL_CAUSE_CODE, INTERNAL_CAUSE_CODE_DESC)	
+group by
+	err.INTERNAL_CAUSE_CODE,
+	err.INTERNAL_CAUSE_CODE_DESC
+order by
+	err.INTERNAL_CAUSE_CODE

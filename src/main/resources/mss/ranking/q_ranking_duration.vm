@@ -1,0 +1,47 @@
+## This template is used for IMSI long duration and short duration (raw, aggregation) ranking.
+##
+## Template Parameters:
+## 		techPackTables, count, errorType=[DROPPED_CALLS,BLOCKED_CALLS], timerange=[TR_1, TR_3, TR_4]
+## Query Parameters:
+## 		:dateTo, :dateFrom
+##
+## Author: echimma
+#if($errorType == "LONG_DURATION_CALLS")
+	#set($orderBy = "desc")
+	##set($aggTableName = "EVENT_E_MSS_VOICE_IMSI_LONG_DUR_RANK$time" )
+#elseif($errorType == "SHORT_DURATION_CALLS")
+	#set($orderBy = "asc")
+	##set($aggTableName = "EVENT_E_MSS_VOICE_IMSI_SHORT_DUR_RANK$time" )
+#end
+
+#if($timerange == "TR_1" || $timerange == "TR_2" )
+  #set($shouldUseAggrTables = false)
+#else
+  #set($shouldUseAggrTables = true)
+#end
+
+#set($selectedColumn=["IMSI","MSISDN", "CALLING_PARTY_NUM", "CALL_DURATION"])
+
+begin
+	select
+    	#if($count > 0)
+        top $count
+		#end
+		rank() over (order by CALL_DURATION $orderBy) as RANK,
+		#GET_COLUMNS_NO_COMMA_TRAILING($selectedColumn)
+	from
+	(
+		select 
+			*
+		from
+		#if($shouldUseAggrTables)
+			#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL($techPackTables.getSucTables() "suc_table" $selectedColumn $selectedColumn)
+		#else
+			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION($techPackTables.getSucTables() "suc_table" $selectedColumn $selectedColumn)
+		#end
+		where
+			CALL_DURATION > 0
+	) as res_table
+order by RANK
+
+end

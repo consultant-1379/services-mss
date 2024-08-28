@@ -1,0 +1,36 @@
+(
+	select
+		#if($SUBBI_HIER321_ID)
+			$constantColumnName,
+		#else
+			$constantColumnValue as $constantColumnName,
+		#end
+		#GET_COLUMNS($joinColumns)
+		#GET_COLUMNS($commonColumns)
+		$rawAggColumn
+	from
+		#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS($tables "tmp" $filterColumns $extraTable $useTACExclusion)
+	where
+		#GET_COLUMNS_WHERE_BY_TABLE_EXTRA_TABLE_EXTRA_COLUMN("tmp" $joinColumns $extraTable $extraJoin)
+		#if($HOUR)
+			and
+			HOUR_ID = :HOUR_ID
+		#end
+		#if($DAY)
+			and
+			dayname(cast (DATEADD(MINUTE, ${tzOffset}, DATETIME_ID) as DATE)) = :DAY
+		#end
+		#if($SUBBI_HIER321_ID)
+			and
+			HIER321_ID = :HIER321_ID
+		#end
+	group by
+	$constantColumnName,
+	#GET_COLUMNS($joinColumns)
+	#GET_COLUMNS_NO_COMMA_TRAILING($commonColumns)
+) as $tableAlias(
+	$constantColumnName,
+	#GET_COLUMNS($joinColumns)
+	#GET_COLUMNS($commonColumns)
+	$rawAggColumnAlias
+	)

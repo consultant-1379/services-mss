@@ -1,0 +1,5 @@
+left outer join
+	#UNION_ALL_TABLES_WITH_FILTER_COLUMNS_CHECK($jointables $tempView $topologyFilterColumns)
+    on(
+      #GET_MULTI_JOIN_EMPTY_CHECK($aliasTables $tempView $columns)
+    )

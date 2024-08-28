@@ -1,0 +1,22 @@
+(
+select
+	#GET_COLUMNS($joinColumns)
+	#GET_COLUMNS($commonColumns)
+	count(distinct(IMSI))
+from
+	(
+        $imsiView
+     ) as tmp(
+		#GET_COLUMNS($joinColumns)
+		#GET_COLUMNS($commonColumns)
+		IMSI
+		)
+group by
+	#GET_COLUMNS($joinColumns)
+	#GET_COLUMNS_NO_COMMA_TRAILING($commonColumns)
+)as $imsi_table_alias
+(
+	#GET_COLUMNS($joinColumns)
+	#GET_COLUMNS_NO_COMMA_TRAILING($commonColumns)
+	$no_of_impacted_subscriber
+)

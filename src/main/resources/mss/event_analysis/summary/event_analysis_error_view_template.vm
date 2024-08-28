@@ -1,0 +1,36 @@
+(
+	select
+	    #if($ftype!= "")
+			#foreach ($column in $joinColumns)
+				#foreach ($table in $listOfErrTableAlias)
+					${table}.$column
+					#if ( $velocityCount < $tables.size() )
+					,
+					#end
+				#end
+				as $column ,
+			#end
+		#else
+			#CONVERT_TO_IS_NULL_FUNC_STRING($listOfErrTableAlias $joinColumns)
+		#end
+		#if($ftype!= "")
+			#foreach ($column in $commonColumns)
+				#foreach ($table in $listOfErrTableAlias)
+					${table}.$column
+					#if ( $velocityCount < $tables.size() )
+					,
+					#end
+				#end
+				as $column ,
+			#end
+		#else
+			#CONVERT_TO_IS_NULL_FUNC_STRING($listOfErrTableAlias $commonColumns)
+		#end
+	#GET_COLUMNS_NO_COMMA_TRAILING($listOfErrorColumns)
+	from
+	$combinedErrorTable
+)as $errView(
+	#GET_COLUMNS($joinColumns)
+	#GET_COLUMNS($commonColumns)
+	#GET_COLUMNS_NO_COMMA_TRAILING($listOfErrorColumns)
+)

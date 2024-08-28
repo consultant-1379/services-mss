@@ -1,0 +1,7 @@
+select
+	#GET_COLUMNS_BY_TABLE("tmp" $filterColumns)
+	$eventResult as EventResult
+from
+	#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS_EVENT_ID_FILTER($tables "tmp" $filterColumns $extraTable $useTACExclusion)
+where
+	#GET_COLUMNS_WHERE_BY_TABLE_EXTRA_TABLE_EXTRA_COLUMN("tmp" $joinColumns $extraTable $extraJoin)

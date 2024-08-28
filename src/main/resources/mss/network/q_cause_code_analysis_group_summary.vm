@@ -1,0 +1,176 @@
+                                                                  ##=============================================================================
+##
+## Cause code analysis: detailed cause code/sub cause code data
+## ------------------------------------------------------------
+##
+## List sub cause code detail for cause code including description & subscriber
+##
+## type : one of {MSC, BSC, CELL}
+##
+##
+##=============================================================================
+
+#DEFINE_CONSTANTS()
+
+#if(${type}==$ApplicationConstants.TYPE_MSC)
+	#set($nodeIdColumn=$ApplicationConstants.EVENT_SOURCE_SQL_ID)
+	#set($groupTable="GROUP_TYPE_E_EVNTSRC_CS")
+#elseif(${type}==$TYPE_BSC)
+	#set($nodeIdColumn=$ApplicationConstants.CONTROLLER_SQL_ID)
+	#set($groupTable="GROUP_TYPE_E_RAT_VEND_HIER3")
+#elseif(${type}==$TYPE_CELL)
+	#set($nodeIdColumn=$ApplicationConstants.CELL_SQL_ID)
+	#set($groupTable="GROUP_TYPE_E_RAT_VEND_HIER321")
+#end
+
+#if($useAggregationTables)
+	#set($occurrences="sum(NO_OF_ERRORS) as OCCURRENCES")
+	#set($tables=$techPackAggViews)	
+#else
+	#set($occurrences="count(*) as OCCURRENCES")
+	#set($tables=$techPackTables)	
+#end
+
+#set($columnsImsi=["temp_group.GROUP_NAME","err.INTERNAL_CAUSE_CODE","err.FAULT_CODE","err.IMSI"])
+#set($columnsCount=["temp_group.GROUP_NAME","err.INTERNAL_CAUSE_CODE","err.FAULT_CODE",$occurrences])
+
+#macro (REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE $rawtables $nodeIdColumn $groupTable $columns $groupBy)
+	#foreach ($rawtable in $rawtables)
+		select
+			#GET_COLUMNS_NO_COMMA_TRAILING($columns)
+		from 
+			dc.$rawtable err, 
+			dc.$groupTable temp_group 
+		where
+			#GET_DATETIME_RANGE_BY_TABLE("err")
+		and 
+			temp_group.$ApplicationConstants.GROUP_NAME_KEY = :$ApplicationConstants.GROUP_NAME_KEY
+		and
+			err.$nodeIdColumn=temp_group.$nodeIdColumn
+		#if($groupBy)
+        group by 
+            temp_group.GROUP_NAME, err.INTERNAL_CAUSE_CODE, err.FAULT_CODE
+		#end
+		#if($velocityCount < $rawtables.size())
+				union all
+		#end
+	#end
+#end
+
+#macro (REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE_WITH_TAC_EXCLUSION $rawtables $nodeIdColumn $groupTable $columns $groupBy)
+	#foreach ($rawtable in $rawtables)
+		select
+			#GET_COLUMNS_NO_COMMA_TRAILING($columns)
+		from 
+			dc.$rawtable err, 
+			dc.$groupTable temp_group 
+		where
+			#GET_DATETIME_RANGE_BY_TABLE("err")
+		and 
+			temp_group.$ApplicationConstants.GROUP_NAME_KEY = :$ApplicationConstants.GROUP_NAME_KEY
+		and
+			err.$nodeIdColumn=temp_group.$nodeIdColumn
+		and
+			#GET_TAC_EXCLUSION()
+		#if($groupBy)
+        group by 
+            temp_group.GROUP_NAME, err.INTERNAL_CAUSE_CODE, err.FAULT_CODE
+		#end
+		#if($velocityCount < $rawtables.size())
+				union all
+		#end
+	#end
+#end
+
+begin
+
+select 
+#if($count > 0)
+	top $count
+#end
+        RESULT_DATA.GROUP_NAME as GROUP_NAME,
+        RESULT_DATA.INTERNAL_CAUSE_CODE as INTERNAL_CAUSE_CODE_ID, 
+        CAUSE_CODE.INTERNAL_CAUSE_CODE_DESC as INTERNAL_CAUSE_CODE, 
+        RESULT_DATA.FAULT_CODE as FAULT_CODE_ID, 
+        FCODE.FAULT_CODE_DESC as FAULT_CODE, 
+        FCODE.ADVICE as RECOMENDED_ACTION, 
+        RESULT_DATA.OCCURRENCES,  
+        RESULT_DATA.IMPACTED_SUBSCRIBERS 
+from(
+    select 
+        isnull(ERROR_VIEW.GROUP_NAME, IMPACTED_SUBSCRIBER.GROUP_NAME) as GROUP_NAME, 
+        isnull(ERROR_VIEW.INTERNAL_CAUSE_CODE, IMPACTED_SUBSCRIBER.INTERNAL_CAUSE_CODE) as INTERNAL_CAUSE_CODE, 
+        isnull(ERROR_VIEW.FAULT_CODE, IMPACTED_SUBSCRIBER.FAULT_CODE) as FAULT_CODE, 
+        isnull(ERROR_VIEW.OCCURRENCES,0) as OCCURRENCES, 
+        isnull(IMPACTED_SUBSCRIBER.IMPACTED_SUBSCRIBERS,0) as IMPACTED_SUBSCRIBERS 
+    from
+    (
+        select 
+            isnull(error_blocked.GROUP_NAME, error_dropped.GROUP_NAME) as GROUP_NAME, 
+            isnull(error_blocked.INTERNAL_CAUSE_CODE, error_dropped.INTERNAL_CAUSE_CODE) as INTERNAL_CAUSE_CODE,
+            isnull(error_blocked.FAULT_CODE, error_dropped.FAULT_CODE) as FAULT_CODE, 
+            isnull(error_blocked.OCCURRENCES,0) + isnull(error_dropped.OCCURRENCES,0) as OCCURRENCES
+        from
+			(
+            #if($useAggregationTables)
+    			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE($tables.getErrTables() $nodeIdColumn $groupTable $columnsCount true)
+            #else
+    			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE_WITH_TAC_EXCLUSION($tables.getErrTables() $nodeIdColumn $groupTable $columnsCount true)            #end
+			) as error_blocked
+            full outer join
+			(
+            #if($useAggregationTables)
+    			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE($tables.getErrTables("DROP_CALL") $nodeIdColumn $groupTable $columnsCount true)
+            #else
+    			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE_WITH_TAC_EXCLUSION($tables.getErrTables("DROP_CALL") $nodeIdColumn $groupTable $columnsCount true)
+            #end
+			) as error_dropped
+            on
+            (
+                error_blocked.INTERNAL_CAUSE_CODE = error_dropped.INTERNAL_CAUSE_CODE and 
+                error_blocked.FAULT_CODE = error_dropped.FAULT_CODE
+            )
+    )as ERROR_VIEW
+
+    full outer join
+    
+    (
+        select
+            GROUP_NAME,
+            INTERNAL_CAUSE_CODE,
+            FAULT_CODE, 
+            count(distinct(imsi)) as IMPACTED_SUBSCRIBERS
+        from
+            (
+                #if($useAggregationTables)
+    				#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE($techPackTables.getErrTables() $nodeIdColumn $groupTable $columnsImsi false)
+                #else
+    				#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE_WITH_TAC_EXCLUSION($techPackTables.getErrTables() $nodeIdColumn $groupTable $columnsImsi false)
+                #end
+                union all
+                #if($useAggregationTables)
+    				#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE($techPackTables.getErrTables("DROP_CALL") $nodeIdColumn $groupTable $columnsImsi false)
+                #else
+    				#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_FILTER_COLUMNS_BY_GROUP_TABLE_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") $nodeIdColumn $groupTable $columnsImsi false)
+                #end
+			) as temp
+        group by
+            GROUP_NAME, INTERNAL_CAUSE_CODE, FAULT_CODE    
+    )as IMPACTED_SUBSCRIBER
+
+    on(
+        isnull(ERROR_VIEW.INTERNAL_CAUSE_CODE, -1) = isnull(IMPACTED_SUBSCRIBER.INTERNAL_CAUSE_CODE, -1) and 
+        isnull(ERROR_VIEW.FAULT_CODE, -1) = isnull(IMPACTED_SUBSCRIBER.FAULT_CODE, -1)	
+    )
+) as RESULT_DATA 
+left outer join
+    dc.DIM_E_MSS_FAULT_CODE as FCODE
+on
+    RESULT_DATA.FAULT_CODE = FCODE.FAULT_CODE
+left outer join
+    dc.DIM_E_MSS_INTERNAL_CAUSE_CODE as CAUSE_CODE
+on
+    RESULT_DATA.INTERNAL_CAUSE_CODE = CAUSE_CODE.INTERNAL_CAUSE_CODE
+order by
+    INTERNAL_CAUSE_CODE_ID, FAULT_CODE_ID
+end

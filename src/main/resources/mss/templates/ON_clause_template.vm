@@ -1,0 +1,4 @@
+on(
+	#GET_MULTI_JOIN_EMPTY_CHECK($aliasTables $joinTable $commonColumns)
+	and #GET_MULTI_JOIN_EMPTY_CHECK($aliasTables $joinTable $joinColumns)
+)

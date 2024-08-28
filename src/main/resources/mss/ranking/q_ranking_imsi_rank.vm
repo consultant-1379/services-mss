@@ -1,0 +1,61 @@
+#macro (SELECT_BLOCK_RANKING_IMSI $techPackTables)
+	select
+		IMSI,
+		count(*) as FAILURE
+		from 
+        #REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_IMSI0_EXCLUSION($techPackTables.getErrTables() "EVENT_E_MSS_VOICE_CDR_ERR_RAW" ["IMSI"] ["IMSI"])
+    group by 
+        IMSI
+#end
+
+#macro (SELECT_DROP_RANKING_IMSI $techPackTables)
+	select  
+		IMSI,
+		count(*) as FAILURE
+		from 
+        #REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_IMSI0_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" ["IMSI"] ["IMSI"])
+    group by 
+        IMSI
+#end
+
+#macro (SELECT_SUC_RANKING_IMSI $techPackTables)
+	select 
+    	IMSI,
+		count(*) as SUCCESS 
+    from 
+		#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_IMSI0_EXCLUSION($techPackTables.getSucTables() "EVENT_E_MSS_VOICE_CDR_SUC_RAW" ["IMSI"] ["IMSI"])
+    group by 
+		IMSI
+#end
+
+begin
+
+select
+#if($count > 0)
+	top $count
+#end
+    rank() over (order by RESULT_DATA.FAILURE desc) as RANK,
+	RESULT_DATA.IMSI as IMSI,
+    RESULT_DATA.FAILURE as FAILURE,
+    RESULT_DATA.SUCCESS as SUCCESS
+from
+    (
+    select
+		isnull(CDR_SUCCESS.IMSI,CDR_FAILURE.IMSI) as IMSI,
+		isnull(CDR_FAILURE.FAILURE,0) as FAILURE,
+    isnull(CDR_SUCCESS.SUCCESS,0) as SUCCESS
+    from
+        (
+			    #SELECT_SUC_RANKING_IMSI($techPackTables)
+        ) as CDR_SUCCESS
+        full outer join
+        (
+		#if($errorType == $ApplicationConstants.DROPPED_CALLS)
+			#SELECT_DROP_RANKING_IMSI($techPackTables)
+		#elseif($errorType == $ApplicationConstants.BLOCKED_CALLS)
+			#SELECT_BLOCK_RANKING_IMSI($techPackTables)
+		#end
+        ) as CDR_FAILURE
+		on(CDR_SUCCESS.IMSI=CDR_FAILURE.IMSI)
+    )as RESULT_DATA
+end

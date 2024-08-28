@@ -1,0 +1,8 @@
+select
+    FAULT_CODE,
+	FAULT_CODE_DESC,
+	ADVICE
+from
+    dc.DIM_E_MSS_FAULT_CODE 
+order by
+    FAULT_CODE

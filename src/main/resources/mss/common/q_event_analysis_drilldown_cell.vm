@@ -1,0 +1,169 @@
+## This template is used to generate the SQL for MssKPIRatio drilldown feature.
+## When Mss KPI Ratio drilldown from the CELL to Internal Cause Code Analysis.
+## There are three different condictions:
+##	1. type = MSC (drilldown start from MSC Event Analysis)
+##	2. type = BSC (drilldown start from BSC Event Analysis)
+##	3. type = CELL (drilldown start from CELL Event Analysis)
+##
+## Template Parameters:
+##	1.type = [MSSMSC, MSSBSC, MSSCELL]
+## Query Parameters:
+##	1. type = MSSMSC
+##		:EVENT_ID, :EVNTSRC_ID, :HIER3_ID, :HIER321_ID
+##	2. type = MSSBSC
+##		:EVENT_ID, :HIER3_ID, :HIER321_ID
+##	3. type = MSSCELL
+## 		:EVENT_ID, :HIER321_ID
+## Author echimma
+#DEFINE_CONSTANTS()
+#set($eventID=$ApplicationConstants.EVENT_ID_SQL_PARAM)
+#if(${type}==$ApplicationConstants.TYPE_BSC)
+	#set($condictionValues=["$ApplicationConstants.CELL_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID"])
+#elseif(${type}==$ApplicationConstants.TYPE_MSC)
+	#set($condictionValues=["$ApplicationConstants.CELL_SQL_ID", "$ApplicationConstants.CONTROLLER_SQL_ID", "$ApplicationConstants.EVENT_SOURCE_SQL_ID"])
+#elseif(${type}==$ApplicationConstants.TYPE_CELL)
+	#set($condictionValues=["$ApplicationConstants.CELL_SQL_ID"])
+#end
+
+#macro (SELECT_RETURN_COLUMNS $columns)
+	#foreach ($column in $columns)
+        #if ( $velocityCount <= 1)
+        :$column as $column
+        #else
+        ,:$column as $column
+        #end
+    #end
+#end
+
+begin
+
+select
+#if($count > 0)
+	top $count
+#end
+	:$eventID as $eventID,
+	#SELECT_RETURN_COLUMNS($condictionValues),
+	RESULT_DATA.INTERNAL_CAUSE_CODE as INTERNAL_CAUSE_CODE_ID, 
+    CAUSE_CODE.INTERNAL_CAUSE_CODE_DESC as INTERNAL_CAUSE_CODE, 
+    RESULT_DATA.FAULT_CODE as FAULT_CODE_ID, 
+    FCODE.FAULT_CODE_DESC as FAULT_CODE, 
+    ##FCODE.ADVICE as RECOMENDED_ACTION, 
+	etref.EVENT_ID_DESC as EventType,
+    RESULT_DATA.OCCURRENCES,  
+    RESULT_DATA.IMPACTED_SUBSCRIBERS 
+from
+	(
+		select 
+			RESULT_DATA.EVENT_ID, 
+			RESULT_DATA.HIER321_ID, 
+			RESULT_DATA.INTERNAL_CAUSE_CODE, 
+			RESULT_DATA.FAULT_CODE, 
+			RESULT_DATA.OCCURRENCES, 
+			IMPACTED_IMSI_TABLE.IMPACTED_SUBSCRIBERS
+		from(
+			select 
+				:$eventID as EVENT_ID,
+				isnull(DROP_TABLE.HIER321_ID, ERR_TABLE.HIER321_ID) as HIER321_ID, 
+				isnull(DROP_TABLE.INTERNAL_CAUSE_CODE, ERR_TABLE.INTERNAL_CAUSE_CODE) as INTERNAL_CAUSE_CODE, 
+				isnull(DROP_TABLE.FAULT_CODE, ERR_TABLE.FAULT_CODE) as FAULT_CODE, 
+				isnull(DROP_TABLE.OCCURRENCES,0) + isnull(ERR_TABLE.OCCURRENCES,0) as OCCURRENCES
+			from(
+					select 
+						:$eventID as EVENT_ID,
+						HIER321_ID,
+						INTERNAL_CAUSE_CODE,
+						FAULT_CODE, 
+						count(*) as OCCURRENCES
+					from(
+						select
+							*
+						from
+							#REPLACE_RAW_VIEW_WITH_RAW_TABLES_WITH_TAC_EXCLUSION($techPackTables.getErrTables("DROP_CALL") "drop_tmp")
+						where
+							EVENT_ID = :$eventID and
+							#GET_COLUMNS_WHERE($condictionValues)
+							and HIER321_ID is not null
+							and INTERNAL_CAUSE_CODE is not null
+							and FAULT_CODE is not null
+						) as drop_table
+					group by 
+						HIER321_ID, INTERNAL_CAUSE_CODE, FAULT_CODE 
+				) as DROP_TABLE 
+				full outer join
+				(
+					select 
+						:$eventID as EVENT_ID,
+						HIER321_ID,
+						INTERNAL_CAUSE_CODE,
+						FAULT_CODE, 
+						count(*) as OCCURRENCES
+					from(
+						select
+							*
+						from
+							  #REPLACE_RAW_VIEW_WITH_RAW_TABLES_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "err_tmp")
+						where
+							EVENT_ID = :$eventID and
+							#GET_COLUMNS_WHERE($condictionValues)
+							and HIER321_ID is not null
+							and INTERNAL_CAUSE_CODE is not null
+							and FAULT_CODE is not null
+						) as err_table
+					group by 
+						HIER321_ID, INTERNAL_CAUSE_CODE, FAULT_CODE 
+				) as ERR_TABLE
+				on(
+					ERR_TABLE.INTERNAL_CAUSE_CODE=DROP_TABLE.INTERNAL_CAUSE_CODE and ERR_TABLE.FAULT_CODE=DROP_TABLE.FAULT_CODE)
+		) as RESULT_DATA 
+		full outer join
+		(
+			SELECT count(distinct(IMSI)) as IMPACTED_SUBSCRIBERS ,INTERNAL_CAUSE_CODE, FAULT_CODE from
+			(
+				(
+					select
+						IMSI,INTERNAL_CAUSE_CODE,FAULT_CODE
+					from
+						#REPLACE_RAW_VIEW_WITH_RAW_TABLES($techPackTables.getErrTables("DROP_CALL") "drop_tmp")
+					where
+						EVENT_ID = :$eventID and
+						#GET_COLUMNS_WHERE($condictionValues)
+						and HIER321_ID is not null
+						and INTERNAL_CAUSE_CODE is not null
+						and FAULT_CODE is not null
+				)
+				union all
+				(
+					select
+						IMSI,INTERNAL_CAUSE_CODE,FAULT_CODE
+					from
+						  #REPLACE_RAW_VIEW_WITH_RAW_TABLES_WITH_TAC_EXCLUSION($techPackTables.getErrTables() "err_tmp")
+					where
+						EVENT_ID = :$eventID and
+						#GET_COLUMNS_WHERE($condictionValues)
+						and HIER321_ID is not null
+						and INTERNAL_CAUSE_CODE is not null
+						and FAULT_CODE is not null
+				)
+			) as impacted_table
+			group by 
+				INTERNAL_CAUSE_CODE, 
+				FAULT_CODE
+		) as IMPACTED_IMSI_TABLE
+		on RESULT_DATA.FAULT_CODE = IMPACTED_IMSI_TABLE.FAULT_CODE and RESULT_DATA.INTERNAL_CAUSE_CODE = IMPACTED_IMSI_TABLE.INTERNAL_CAUSE_CODE
+	) as RESULT_DATA
+	left outer join
+		dc.DIM_E_MSS_FAULT_CODE as FCODE
+	on
+		RESULT_DATA.FAULT_CODE = FCODE.FAULT_CODE
+	left outer join
+		dc.DIM_E_MSS_INTERNAL_CAUSE_CODE as CAUSE_CODE
+	on
+		RESULT_DATA.INTERNAL_CAUSE_CODE = CAUSE_CODE.INTERNAL_CAUSE_CODE
+	left outer join
+		dc.DIM_E_MSS_EVENTTYPE as etref
+	on 
+		etref.EVENT_ID = RESULT_DATA.EVENT_ID
+order by
+    INTERNAL_CAUSE_CODE_ID, FAULT_CODE_ID
+	
+end

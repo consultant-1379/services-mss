@@ -1,0 +1,31 @@
+select 
+	#GET_NOT_NULL_COLUMN(["error_table", "suc_table"] $columnsToBeSelected)  
+	isnull(blocked_call,0) + isnull(dropped_call,0) as error_call,
+	isnull(suc_call,0) as suc_call
+from
+	(
+		select 
+    		#GET_NOT_NULL_COLUMN(["blocked_table", "dropped_table"] $columnsToBeSelected) blocked_call, dropped_call 
+    	from 
+        (
+    		select
+    			#GET_COLUMNS($columnsToBeSelected) count(*) as blocked_call 
+    		from 
+    			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($errorTables "EVENT_E_MSS_CDR_ERR_RAW" $columnsToBeSelected $columnsToBeSelected)
+    		group by
+    			#GET_COLUMNS_NO_COMMA_TRAILING($columnsToBeSelected)
+        ) as blocked_table 
+    
+    	full outer join
+    
+    	(
+    		select
+    			#GET_COLUMNS($columnsToBeSelected) count(*) as dropped_call
+			from
+    			#REPLACE_RAW_VIEW_WITH_RAW_TABLES_AND_SPECIFY_COLUMNS_NOT_NULL_WITH_TAC_EXCLUSION_AND_ROAMING($dropCallTables "EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW" $columnsToBeSelected $columnsToBeSelected)
+    		group by 
+				#GET_COLUMNS_NO_COMMA_TRAILING($columnsToBeSelected)
+        ) as dropped_table
+        on 
+    		#GET_JOIN("blocked_table" "dropped_table" $columnsToBeSelected)
+	) as error_table

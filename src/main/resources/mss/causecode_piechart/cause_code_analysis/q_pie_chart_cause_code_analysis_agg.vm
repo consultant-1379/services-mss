@@ -1,0 +1,12 @@
+select
+	events.INTERNAL_CAUSE_CODE,
+	events.INTERNAL_CAUSE_CODE_DESC,
+	events.NO_OF_ERRORS,
+	subscribers.NO_OF_SUBSCRIBERS
+from
+	($QUERY_PART_EVENTS) events,
+	($QUERY_PART_SUBSCRIBERS) subscribers
+where
+	events.INTERNAL_CAUSE_CODE *= subscribers.INTERNAL_CAUSE_CODE
+order by
+	events.INTERNAL_CAUSE_CODE

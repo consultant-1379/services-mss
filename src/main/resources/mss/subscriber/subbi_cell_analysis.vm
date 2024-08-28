@@ -1,0 +1,40 @@
+##Define some constants that are used by the macros
+#DEFINE_CONSTANTS()
+
+#set($toplogyTables = ["DIM_E_SGEH_HIER321","DIM_Z_SGEH_HIER321"])
+#set($topologyColumns = ["HIERARCHY_3","HIERARCHY_1","HIERARCHY_2","VENDOR","HIER321_ID","RAT"])
+#set($topologyView = "topologyref")
+#set($sumaryView = "sumaryView")
+#set($ratView = "ratref")
+
+select
+	#if($count > 0)
+		top $count
+	#end
+	#REPLACE_BY_SUM_STATEMENT($listOfErrorColumns $sumErrStatementAlias),
+    #REPLACE_BY_SUM_STATEMENT($listOfSuccessColumns $sumSucStatementAlias),
+	${topologyView}.HIERARCHY_1 + ','  + ${topologyView}.HIERARCHY_2 + ',' +
+	${topologyView}.HIERARCHY_3 + ','  + 
+	${topologyView}.VENDOR + ','  + 
+	${ratView}.RAT_DESC
+from
+	(
+    select
+    	#CONVERT_TO_IS_NULL_FUNC_STRING($allTableAlias $commonColumns)
+    	#IF_NULL_ASSIGN_ZERO($listOfErrorColumns)
+		#IF_NULL_ASSIGN_ZERO_NO_COMMA_TRAILING($listOfSuccessColumns)
+    from
+    	$allTablesQueryPart
+	group by
+		#GET_COLUMNS($commonColumns)
+		#GET_COLUMNS($listOfErrorColumns)
+		#GET_COLUMNS_NO_COMMA_TRAILING($listOfSuccessColumns)
+	)as $sumaryView,
+	dc.DIM_E_SGEH_RAT $ratView,
+	#UNION_ALL_TABLES_WITH_FILTER_COLUMNS_CHECK($toplogyTables $topologyView $topologyColumns)
+where
+	#GET_JOIN($sumaryView $topologyView $commonColumns)
+	and
+	#GET_JOIN($ratView $topologyView ["RAT"])
+order by 
+	NO_OF_ERRORS desc

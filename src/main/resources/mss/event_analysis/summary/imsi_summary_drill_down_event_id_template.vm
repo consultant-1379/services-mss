@@ -1,0 +1,10 @@
+select
+	#GET_COLUMNS_BY_TABLE("tmp" $joinColumns)
+	IMSI
+from
+	#REPLACE_VIEW_WITH_TABLES_AND_SPECIFY_COLUMNS($tables "tmp" $imsiFilterColumns $extraTable $useTACExclusion)
+where
+	#GET_COLUMNS_WHERE_BY_TABLE_EXTRA_TABLE_EXTRA_COLUMN_EVENTID("tmp" $joinColumns $extraTable $extraJoin)
+group by
+	#GET_COLUMNS_BY_TABLE("tmp" $joinColumns)
+	#GET_COLUMNS_BY_TABLE_NO_COMMA_TRAILING("tmp" ["IMSI"])

@@ -1,0 +1,73 @@
+## Get MSS raw tables from DB
+## key : one of {SUC, ERR, TOTAL}
+## egraman 13/04/2011
+
+#macro (SELECT_STATEMENT $table)
+	#if(${toSelectRandomTable})
+		SELECT
+			top 1
+			*
+		FROM
+        	$table
+	#else
+        SELECT TABLENAME FROM
+        $table
+        WHERE
+        #if(${toSelectLatestTable})
+        	MAX_DATE = (
+        		SELECT 
+        			max(MAX_DATE)
+        		from 
+        			$table
+        		where 
+                    TABLENAME like '%_SUC_RAW%'
+        	)
+        	or MAX_DATE = (
+        		SELECT 
+        			max(MAX_DATE)
+        		from 
+        			$table 
+                where 
+                    TABLENAME like '%_ERR_RAW%'
+            )
+			or MAX_DATE = (
+        		SELECT 
+        			max(MAX_DATE)
+        		from 
+        			$table 
+                where 
+                    TABLENAME like '%_DROP_CALL_RAW%'
+            )
+        #else
+        	MAX_DATE > :dateFrom and MIN_DATE <= :dateTo
+        #end		
+	#end
+#end
+
+#if(${key}==$ApplicationConstants.KEY_TYPE_ERR)		
+	#set($serviceTable="EVENT_E_MSS_VOICE_CDR_ERR_RAW_TIMERANGE")
+#elseif(${key}==$ApplicationConstants.KEY_TYPE_DROP_CALL)
+	#set($serviceTable="EVENT_E_MSS_VOICE_CDR_DROP_CALL_RAW_TIMERANGE")
+#elseif(${key}==$ApplicationConstants.KEY_TYPE_SUC)
+	#set($serviceTable="EVENT_E_MSS_VOICE_CDR_SUC_RAW_TIMERANGE")
+#elseif(${key}==$ApplicationConstants.KEY_TYPE_LOC_SERVICE_SUC)
+	#set($serviceTable="EVENT_E_MSS_LOC_SERVICE_CDR_SUC_RAW_TIMERANGE")
+#elseif(${key}==$ApplicationConstants.KEY_TYPE_LOC_SERVICE_ERR)
+	#set($serviceTable="EVENT_E_MSS_LOC_SERVICE_CDR_ERR_RAW_TIMERANGE")
+#elseif(${key}==$ApplicationConstants.KEY_TYPE_SMS_SUC)
+	#set($serviceTable="EVENT_E_MSS_SMS_CDR_SUC_RAW_TIMERANGE")
+#elseif(${key}==$ApplicationConstants.KEY_TYPE_SMS_ERR)
+	#set($serviceTable="EVENT_E_MSS_SMS_CDR_ERR_RAW_TIMERANGE")
+#end
+
+#if(${isCombinedView}=="true")
+	#SELECT_STATEMENT($locationTable)
+	union
+	#SELECT_STATEMENT($smsTable)
+	union
+	#SELECT_STATEMENT($voiceTable)
+	union
+	#SELECT_STATEMENT($dropcallTable)
+#else
+	#SELECT_STATEMENT($serviceTable)
+#end

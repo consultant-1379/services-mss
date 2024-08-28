@@ -1,0 +1,30 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:jee="http://www.springframework.org/schema/jee" 
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+						http://www.springframework.org/schema/beans/spring-beans-2.5.xsd 
+						http://www.springframework.org/schema/context 
+						http://www.springframework.org/schema/context/spring-context-2.5.xsd 
+						http://www.springframework.org/schema/util 
+						http://www.springframework.org/schema/util/spring-util-2.5.xsd 
+						http://www.springframework.org/schema/jee 
+						http://www.springframework.org/schema/jee/spring-jee-2.5.xsd">
+
+	<bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+		<property name="location" value="classpath:/com/ericsson/eniq/events/server/test/jdbc.properties" />
+	</bean>
+
+	<bean id="templateUtils" class="com.ericsson.eniq.events.server.templates.utils.TemplateUtils" 
+		init-method="applicationStartup" destroy-method="applicationShutdown"/>
+	
+	<bean id="sumTempInfoToTypeMappings" class="com.ericsson.eniq.events.server.queryconstructor.impl.mss.eventanalysis.summary.MssSummaryTemplateInfoToTypeMappings"
+	init-method="loadAllTemplateInfo" />
+	
+	<bean id="queryConstructorUtils" class="com.ericsson.eniq.events.server.queryconstructor.QueryConstructorUtils">
+		<property name ="templateUtils" ref ="templateUtils"/>
+	</bean>
+	
+</beans>
